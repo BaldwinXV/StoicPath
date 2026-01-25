@@ -10,6 +10,8 @@ A personal self-improvement dashboard that runs entirely in your browser. It com
 - Local community leaderboard (you + friends) using XP
 - Projects with milestones and a completed-milestone showcase
 - Reflection and recovery tools: temptations log, slip log, and root-cause notes
+- Voltaris AI assistant to design habits, score them, and queue them safely
+- Start-date aware habits so new tasks don’t punish past days
 
 ## XP & Leveling System
 
@@ -34,6 +36,22 @@ The Summary tab shows:
 - Total XP
 - XP earned in the active range (week/month/year)
 - XP sources ranked by contribution
+
+## Voltaris AI Assistant
+
+Voltaris is a built-in habit architect:
+
+- It runs a guided flow (name -> category -> frequency -> difficulty -> duration -> time block)
+- It assigns points automatically based on difficulty and duration
+- It queues habits first so you can review them before adding
+
+Use it in **Manage -> Voltaris AI**.
+
+## Start Dates (No Retroactive Penalties)
+
+New habits now start on the currently selected date. This prevents new habits from lowering past completion %, XP, and streak stats.
+
+You can edit a habit’s start date in **Manage -> Task Manager**.
 
 ## Run Locally
 
@@ -70,34 +88,18 @@ This app is local-first. If you want multi-device sync, use the built-in Firebas
 
 ## Publish to GitHub + GitHub Pages
 
-I can’t make it public without your GitHub repo and authentication, but here is the exact flow.
+Repo:
 
-### 1) Create a GitHub repo
+- `https://github.com/Tyler-Durden1999/StoicPath`
 
-On GitHub:
-
-1. Click New repository
-2. Name it (for example: `self-improvement-os`)
-3. Keep it Public
-4. Do not initialize with a README
-
-### 2) Connect this folder and push
-
-Run these commands inside `/home/tiger/Documents/SelfImprovement` after you create the repo:
+Run these commands inside `/home/tiger/Documents/SelfImprovement`:
 
 ```bash
-git init
 git add .
-git commit -m "feat: self improvement os with leveling and community"
-git branch -M main
-git remote add origin <YOUR_GITHUB_REPO_URL>
+git commit -m "feat: add Voltaris AI assistant and start-date-safe habits"
+git remote add origin https://github.com/Tyler-Durden1999/StoicPath.git
 git push -u origin main
 ```
-
-Example repo URL formats:
-
-- HTTPS: `https://github.com/<username>/<repo>.git`
-- SSH: `git@github.com:<username>/<repo>.git`
 
 ### 3) Turn on GitHub Pages
 
@@ -110,7 +112,7 @@ On GitHub:
 
 Your site will be live at:
 
-- `https://<username>.github.io/<repo>/`
+- `https://tyler-durden1999.github.io/StoicPath/`
 
 ## Important Note About "Community"
 

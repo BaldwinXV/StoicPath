@@ -1071,6 +1071,34 @@
 
             <div class="card">
               <div class="card__head">
+                <div class="card__title">Voltaris AI</div>
+                <div class="card__meta">Habit architect</div>
+              </div>
+              <div class="card__body voltarisPanel">
+                <div class="voltarisActions">
+                  <button class="btn" id="voltarisBuildBtn" type="button">Build a habit</button>
+                  <button class="btn" id="voltarisRoutineBtn" type="button">Plan a routine</button>
+                  <button class="smallBtn" id="voltarisResetBtn" type="button">Reset</button>
+                </div>
+                <div class="voltarisChatLog" id="voltarisChatLog" aria-live="polite"></div>
+                <div class="voltarisInputRow">
+                  <input class="field__input" id="voltarisInput" type="text" placeholder="Tell Voltaris what you want to build..." />
+                  <button class="btn" id="voltarisSendBtn" type="button">Send</button>
+                </div>
+                <div class="voltarisPendingHead">
+                  <div>
+                    <div class="voltarisPendingTitle">Pending habits</div>
+                    <div class="voltarisPendingMeta" id="voltarisPendingMeta">No pending habits</div>
+                  </div>
+                  <button class="btn" id="voltarisAddPendingBtn" type="button">Add queued habits</button>
+                </div>
+                <div class="list" id="voltarisPendingList" aria-label="Voltaris pending habits"></div>
+                <div class="muted">Voltaris queues habits first so you can review points. New habits start on the currently selected date.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
                 <div class="card__title">Goal Targets</div>
                 <div class="card__meta">Daily targets</div>
               </div>
@@ -1168,7 +1196,7 @@
                   <button class="btn" id="addTaskBtn" type="button">Add</button>
                 </div>
                 <div class="list" id="taskManagerList" aria-label="Manage tasks"></div>
-                <div class="muted">Changing habits affects all dates (new habits start unchecked).</div>
+                <div class="muted">New habits start on the currently selected date. Edit the start date inside each habit.</div>
               </div>
             </div>
 

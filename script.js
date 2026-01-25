@@ -514,6 +514,16 @@ const el = {
   addFriendBtn: $("addFriendBtn"),
   friendsList: $("friendsList"),
 
+  voltarisChatLog: $("voltarisChatLog"),
+  voltarisInput: $("voltarisInput"),
+  voltarisSendBtn: $("voltarisSendBtn"),
+  voltarisBuildBtn: $("voltarisBuildBtn"),
+  voltarisRoutineBtn: $("voltarisRoutineBtn"),
+  voltarisResetBtn: $("voltarisResetBtn"),
+  voltarisPendingList: $("voltarisPendingList"),
+  voltarisPendingMeta: $("voltarisPendingMeta"),
+  voltarisAddPendingBtn: $("voltarisAddPendingBtn"),
+
   goalStudyInput: $("goalStudyInput"),
   goalEarningsInput: $("goalEarningsInput"),
   goalSleepInput: $("goalSleepInput"),
@@ -652,6 +662,11 @@ function normalizeTimeBlock(value) {
   return TIME_BLOCKS.some((block) => block.id === raw) ? raw : "any";
 }
 
+function normalizeStartDate(value) {
+  const iso = typeof value === "string" ? value.trim() : "";
+  return isIsoDate(iso) ? iso : "";
+}
+
 function formatTimeBlock(value) {
   const normalized = normalizeTimeBlock(value);
   return TIME_BLOCKS.find((block) => block.id === normalized)?.label ?? "Any time";
@@ -690,6 +705,11 @@ function getDueTasksForBlock(dateObj, block) {
 }
 
 function isTaskScheduledForDate(task, dateObj) {
+  const startIso = normalizeStartDate(task?.startDate);
+  if (startIso) {
+    const startDate = parseISODate(startIso);
+    if (dateObj < startDate) return false;
+  }
   const days = normalizeScheduleDays(task.scheduleDays);
   return days.includes(dateObj.getDay());
 }
@@ -717,6 +737,7 @@ function normalizeTask(task) {
     weight: normalizeWeight(task?.weight),
     scheduleDays: normalizeScheduleDays(task?.scheduleDays),
     timeBlock: normalizeTimeBlock(task?.timeBlock),
+    startDate: normalizeStartDate(task?.startDate),
   };
 }
 
@@ -867,6 +888,140 @@ function normalizeFriend(entry) {
 function normalizeFriends(entries) {
   if (!Array.isArray(entries)) return [];
   return entries.map((entry) => normalizeFriend(entry)).filter(Boolean);
+}
+
+const VOLTARIS_MAX_MESSAGES = 80;
+const VOLTARIS_MAX_PENDING = 12;
+const VOLTARIS_STEPS = [
+  "idle",
+  "ask_title",
+  "ask_category",
+  "ask_frequency",
+  "ask_difficulty",
+  "ask_duration",
+  "ask_block",
+  "confirm",
+];
+
+function createVoltarisDraft(partial = {}) {
+  const base = {
+    title: "",
+    desc: "",
+    category: "Mindset",
+    scheduleDays: DAY_ORDER.slice(),
+    frequencyLabel: "Daily",
+    difficulty: 3,
+    minutes: 30,
+    timeBlock: "any",
+  };
+  return { ...base, ...partial };
+}
+
+function normalizeVoltarisMessage(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const text = typeof entry.text === "string" ? entry.text.trim() : "";
+  if (!text) return null;
+  const role = entry.role === "user" ? "user" : "ai";
+  return {
+    id: typeof entry.id === "string" && entry.id ? entry.id : crypto.randomUUID(),
+    role,
+    text,
+    ts: safeNumber(entry.ts ?? Date.now()),
+  };
+}
+
+function normalizeVoltarisMessages(list) {
+  if (!Array.isArray(list)) return [];
+  const normalized = list.map((entry) => normalizeVoltarisMessage(entry)).filter(Boolean);
+  return normalized.slice(-VOLTARIS_MAX_MESSAGES);
+}
+
+function normalizeVoltarisPendingTask(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const title = typeof entry.title === "string" ? entry.title.trim() : "";
+  if (!title) return null;
+  const difficulty = clamp(Math.round(safeNumber(entry.difficulty ?? 3)), 1, 5);
+  const minutes = clamp(Math.round(safeNumber(entry.minutes ?? 30)), 5, 240);
+  const category = normalizeCategory(entry.category);
+  const timeBlock = normalizeTimeBlock(entry.timeBlock);
+  const scheduleDays = normalizeScheduleDays(entry.scheduleDays);
+  const weight = normalizeWeight(entry.weight ?? computeVoltarisWeight(difficulty, minutes));
+  const frequencyLabel = typeof entry.frequencyLabel === "string" && entry.frequencyLabel.trim()
+    ? entry.frequencyLabel.trim()
+    : formatScheduleDays(scheduleDays);
+  return {
+    id: typeof entry.id === "string" && entry.id ? entry.id : crypto.randomUUID(),
+    title,
+    desc: typeof entry.desc === "string" ? entry.desc : "",
+    category,
+    difficulty,
+    minutes,
+    timeBlock,
+    scheduleDays,
+    frequencyLabel,
+    weight,
+    reason: typeof entry.reason === "string" ? entry.reason : "",
+    createdAt: safeNumber(entry.createdAt ?? Date.now()),
+  };
+}
+
+function normalizeVoltarisPendingTasks(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((entry) => normalizeVoltarisPendingTask(entry))
+    .filter(Boolean)
+    .slice(0, VOLTARIS_MAX_PENDING);
+}
+
+function normalizeVoltarisFlow(flow) {
+  const step = VOLTARIS_STEPS.includes(flow?.step) ? flow.step : "idle";
+  const draftRaw = flow && typeof flow === "object" ? flow.draft : null;
+  const draftBase = createVoltarisDraft(draftRaw ?? {});
+  const draft = {
+    ...draftBase,
+    title: typeof draftBase.title === "string" ? draftBase.title.trim() : "",
+    desc: typeof draftBase.desc === "string" ? draftBase.desc : "",
+    category: normalizeCategory(draftBase.category),
+    scheduleDays: normalizeScheduleDays(draftBase.scheduleDays),
+    difficulty: clamp(Math.round(safeNumber(draftBase.difficulty ?? 3)), 1, 5),
+    minutes: clamp(Math.round(safeNumber(draftBase.minutes ?? 30)), 5, 240),
+    timeBlock: normalizeTimeBlock(draftBase.timeBlock),
+  };
+  draft.frequencyLabel = typeof draftBase.frequencyLabel === "string" && draftBase.frequencyLabel.trim()
+    ? draftBase.frequencyLabel.trim()
+    : formatScheduleDays(draft.scheduleDays);
+  const mode = flow?.mode === "habit" || flow?.mode === "routine" ? flow.mode : "";
+  return { step, draft, mode };
+}
+
+function defaultVoltarisState() {
+  return {
+    messages: [
+      {
+        id: crypto.randomUUID(),
+        role: "ai",
+        text: "I’m Voltaris. I help you design habits, score them fairly, and add them fast. Tap “Build a habit” to begin.",
+        ts: Date.now(),
+      },
+    ],
+    pendingTasks: [],
+    flow: normalizeVoltarisFlow({ step: "idle", draft: createVoltarisDraft(), mode: "" }),
+    lastUpdatedAt: Date.now(),
+  };
+}
+
+function normalizeVoltarisState(raw) {
+  if (!raw || typeof raw !== "object") return defaultVoltarisState();
+  const messages = normalizeVoltarisMessages(raw.messages);
+  const pendingTasks = normalizeVoltarisPendingTasks(raw.pendingTasks);
+  const flow = normalizeVoltarisFlow(raw.flow);
+  const normalized = {
+    messages: messages.length ? messages : defaultVoltarisState().messages,
+    pendingTasks,
+    flow,
+    lastUpdatedAt: safeNumber(raw.lastUpdatedAt ?? Date.now()),
+  };
+  return normalized;
 }
 
 function parseTags(text) {
@@ -1054,6 +1209,7 @@ function initialState() {
     goals: { studyDaily: 0, earningsDaily: 0, sleepDaily: 8 },
     profile: normalizeProfile({ username: "" }),
     friends: [],
+    voltaris: defaultVoltarisState(),
     mantra: "",
     vision: { oneYear: "", fiveYear: "" },
     quarterlyGoals: { label: "", goals: ["", "", "", ""] },
@@ -1176,8 +1332,15 @@ function computeTaskStreak(taskId, dateObj) {
   const task = state.tasks.find((t) => t.id === taskId);
   if (!task) return 0;
 
-  let d = new Date(dateObj);
-  d.setHours(0, 0, 0, 0);
+  const anchor = new Date(dateObj);
+  anchor.setHours(0, 0, 0, 0);
+  const startIso = normalizeStartDate(task.startDate);
+  if (startIso) {
+    const startDate = parseISODate(startIso);
+    if (anchor < startDate) return 0;
+  }
+
+  let d = new Date(anchor);
 
   let guard = 0;
   while (!isTaskScheduledForDate(task, d) && guard < 7) {
@@ -1242,8 +1405,14 @@ function computeBestTaskStreak(taskId) {
   const keys = Object.keys(state.days);
   if (keys.length === 0) return 0;
   const dates = keys.map(parseISODate).sort((a, b) => a - b);
-  const start = dates[0];
+  let start = dates[0];
   const end = dates[dates.length - 1];
+  const startIso = normalizeStartDate(task.startDate);
+  if (startIso) {
+    const startDate = parseISODate(startIso);
+    if (startDate > end) return 0;
+    if (startDate > start) start = startDate;
+  }
 
   let best = 0;
   let cur = 0;
@@ -1508,11 +1677,7 @@ function renderAntiHabits(isoDate) {
       rec.antiHabits[habit.id] = check.checked;
       saveState(state);
       renderAntiHabits(isoDate);
-      renderSummary();
-      refreshProgressionUI();
-      renderLeaderboard();
-      renderAutoInsights();
-      renderCharts();
+      scheduleProgressRefresh();
     });
 
     const main = document.createElement("div");
@@ -2251,12 +2416,8 @@ function renderFocusList(listEl, rec, isoDate) {
       rec.focusSessions = rec.focusSessions.filter((s) => s.id !== session.id);
       saveState(state);
       renderFocus(isoDate);
-      renderSummary();
-      refreshProgressionUI();
-      renderLeaderboard();
+      scheduleProgressRefresh();
       renderAchievements();
-      renderAutoInsights();
-      renderCharts();
     });
     actions.appendChild(del);
 
@@ -2828,12 +2989,8 @@ function stopFocusTimer() {
   renderFocus(iso);
   renderFlowReview(iso);
   renderFlowHeader(iso);
-  renderSummary();
-  refreshProgressionUI();
-  renderLeaderboard();
+  scheduleProgressRefresh();
   renderAchievements();
-  renderAutoInsights();
-  renderCharts();
 }
 
 function renderHistory() {
@@ -3348,7 +3505,9 @@ function renderTaskManager() {
     meta.className = "item__meta";
     const scheduleLabel = formatScheduleDays(task.scheduleDays);
     const blockLabel = formatTimeBlock(task.timeBlock);
-    meta.textContent = `${normalizeCategory(task.category)} • ${normalizeWeight(task.weight)} pts • ${blockLabel} • ${scheduleLabel}`;
+    const startLabel = normalizeStartDate(task.startDate);
+    const startMeta = startLabel ? ` • Starts ${startLabel}` : "";
+    meta.textContent = `${normalizeCategory(task.category)} • ${normalizeWeight(task.weight)} pts • ${blockLabel} • ${scheduleLabel}${startMeta}`;
 
     const desc = document.createElement("div");
     desc.className = "muted";
@@ -3382,6 +3541,12 @@ function renderTaskManager() {
     weightInput.max = "10";
     weightInput.step = "1";
     weightInput.value = String(normalizeWeight(task.weight));
+
+    const startDateInput = document.createElement("input");
+    startDateInput.className = "field__input";
+    startDateInput.type = "date";
+    startDateInput.value = normalizeStartDate(task.startDate);
+    startDateInput.title = "Start date (prevents retroactive penalties)";
 
     const blockSelect = document.createElement("select");
     blockSelect.className = "field__input";
@@ -3424,6 +3589,7 @@ function renderTaskManager() {
       task.desc = (descInput.value ?? "").trim();
       task.category = normalizeCategory(categoryInput.value);
       task.weight = normalizeWeight(weightInput.value);
+      task.startDate = normalizeStartDate(startDateInput.value);
       task.timeBlock = normalizeTimeBlock(blockSelect.value);
       task.scheduleDays = normalizeScheduleDays(Array.from(selectedDays));
       saveState(state);
@@ -3437,6 +3603,7 @@ function renderTaskManager() {
     editor.appendChild(descInput);
     editor.appendChild(categoryInput);
     editor.appendChild(weightInput);
+    editor.appendChild(startDateInput);
     editor.appendChild(blockSelect);
     editor.appendChild(dayRow);
     editor.appendChild(saveBtn);
@@ -5100,6 +5267,600 @@ function scheduleProgressRefresh(delay = 180) {
   }, delay);
 }
 
+function getVoltarisState() {
+  state.voltaris = normalizeVoltarisState(state.voltaris);
+  return state.voltaris;
+}
+
+function voltarisSave({ render = false } = {}) {
+  const voltaris = getVoltarisState();
+  voltaris.lastUpdatedAt = Date.now();
+  saveState(state);
+  if (render) renderVoltaris();
+}
+
+function voltarisPushMessage(role, text, { render = true } = {}) {
+  const voltaris = getVoltarisState();
+  const normalized = normalizeVoltarisMessage({ role, text, ts: Date.now() });
+  if (!normalized) return null;
+  voltaris.messages.push(normalized);
+  voltaris.messages = voltaris.messages.slice(-VOLTARIS_MAX_MESSAGES);
+  voltarisSave({ render });
+  return normalized;
+}
+
+function voltarisSetFlow(step, draftUpdates = {}, modeOverride = null) {
+  const voltaris = getVoltarisState();
+  const nextMode = modeOverride === null ? voltaris.flow.mode : modeOverride;
+  const draft = createVoltarisDraft({ ...voltaris.flow.draft, ...draftUpdates });
+  voltaris.flow = normalizeVoltarisFlow({ step, draft, mode: nextMode });
+  voltarisSave();
+  return voltaris.flow;
+}
+
+function resetVoltaris() {
+  state.voltaris = defaultVoltarisState();
+  saveState(state);
+  renderVoltaris();
+}
+
+function computeVoltarisWeight(difficultyValue, minutesValue) {
+  const difficulty = clamp(Math.round(safeNumber(difficultyValue)), 1, 5);
+  const minutes = clamp(Math.round(safeNumber(minutesValue)), 5, 240);
+  const difficultyScore = difficulty * 1.6;
+  const durationUnits = Math.max(1, Math.round(minutes / 30));
+  const durationScore = Math.min(3.4, durationUnits * 0.7);
+  const raw = difficultyScore + durationScore - 1;
+  return normalizeWeight(raw);
+}
+
+function buildVoltarisReason(difficulty, minutes, weight) {
+  return `Difficulty ${difficulty}/5 • ${minutes} min • ${weight} pts`;
+}
+
+function parseVoltarisDifficulty(text) {
+  const lower = String(text ?? "").trim().toLowerCase();
+  const numeric = Math.round(safeNumber(lower));
+  if (numeric >= 1 && numeric <= 5) return numeric;
+  if (lower.includes("very hard") || lower.includes("extreme")) return 5;
+  if (lower.includes("hard")) return 4;
+  if (lower.includes("medium") || lower.includes("mid")) return 3;
+  if (lower.includes("easy")) return 2;
+  if (lower.includes("tiny") || lower.includes("light")) return 1;
+  return 0;
+}
+
+function parseVoltarisDurationMinutes(text) {
+  const lower = String(text ?? "").trim().toLowerCase();
+  if (!lower) return 0;
+
+  let total = 0;
+  const hourMatch = lower.match(/(\d+(?:\.\d+)?)\s*h/);
+  if (hourMatch) total += safeNumber(hourMatch[1]) * 60;
+  const minuteMatch = lower.match(/(\d+(?:\.\d+)?)\s*m/);
+  if (minuteMatch) total += safeNumber(minuteMatch[1]);
+  if (total > 0) return Math.round(total);
+
+  const numeric = safeNumber(lower.replace(/[^\d.]/g, ""));
+  if (numeric <= 0) return 0;
+  if (lower.includes("hour")) return Math.round(numeric * 60);
+  return Math.round(numeric);
+}
+
+function parseVoltarisFrequency(text) {
+  const lower = String(text ?? "").trim().toLowerCase();
+  const day = activeDate.getDay();
+
+  const presets = [
+    { keys: ["weekdays", "weekday", "mon-fri"], label: "Weekdays", days: [1, 2, 3, 4, 5] },
+    { keys: ["weekends", "weekend"], label: "Weekends", days: [0, 6] },
+    { keys: ["mwf", "mon wed fri", "monday wednesday friday"], label: "Mon/Wed/Fri", days: [1, 3, 5] },
+    { keys: ["tth", "tuethu", "tue thu", "tuesday thursday"], label: "Tue/Thu", days: [2, 4] },
+    { keys: ["once", "today", "one time"], label: "Today only", days: [day] },
+  ];
+
+  for (const preset of presets) {
+    if (preset.keys.some((key) => lower.includes(key))) {
+      return { scheduleDays: preset.days, label: preset.label };
+    }
+  }
+
+  return { scheduleDays: DAY_ORDER.slice(), label: "Daily" };
+}
+
+function parseVoltarisTimeBlock(text) {
+  const lower = String(text ?? "").trim().toLowerCase();
+  if (lower.includes("morning") || lower.includes("am")) return "morning";
+  if (lower.includes("afternoon") || lower.includes("noon") || lower.includes("pm")) return "afternoon";
+  if (lower.includes("evening") || lower.includes("night")) return "evening";
+  return "any";
+}
+
+function getVoltarisCategories() {
+  const base = new Set([
+    "Mindset",
+    "Health",
+    "Fitness",
+    "Study",
+    "Work",
+    "Finance",
+    "Social",
+    "Learning",
+    "Discipline",
+  ]);
+  for (const task of state.tasks ?? []) {
+    base.add(normalizeCategory(task.category));
+  }
+  return Array.from(base);
+}
+
+function parseVoltarisCategory(text) {
+  const raw = normalizeCategory(text);
+  if (!raw) return "Mindset";
+  const lower = raw.toLowerCase();
+  const known = getVoltarisCategories();
+  const exact = known.find((cat) => cat.toLowerCase() === lower);
+  if (exact) return exact;
+  const partial = known.find((cat) => lower.includes(cat.toLowerCase()) || cat.toLowerCase().includes(lower));
+  return partial ?? raw;
+}
+
+function hasTaskWithTitle(title) {
+  const key = title.trim().toLowerCase();
+  return (state.tasks ?? []).some((task) => task.title.trim().toLowerCase() === key);
+}
+
+function makeVoltarisPendingTask(config) {
+  const difficulty = clamp(Math.round(safeNumber(config.difficulty ?? 3)), 1, 5);
+  const minutes = clamp(Math.round(safeNumber(config.minutes ?? 30)), 5, 240);
+  const weight = computeVoltarisWeight(difficulty, minutes);
+  const scheduleDays = normalizeScheduleDays(config.scheduleDays);
+  const frequencyLabel = config.frequencyLabel || formatScheduleDays(scheduleDays);
+  const reason = config.reason || buildVoltarisReason(difficulty, minutes, weight);
+  return normalizeVoltarisPendingTask({
+    ...config,
+    difficulty,
+    minutes,
+    weight,
+    scheduleDays,
+    frequencyLabel,
+    reason,
+  });
+}
+
+function voltarisUpsertPendingTask(config) {
+  const voltaris = getVoltarisState();
+  const pendingTask = makeVoltarisPendingTask(config);
+  if (!pendingTask) return { status: "invalid" };
+
+  if (hasTaskWithTitle(pendingTask.title)) {
+    return { status: "exists", task: pendingTask };
+  }
+
+  const key = pendingTask.title.toLowerCase();
+  const existingIndex = voltaris.pendingTasks.findIndex((task) => task.title.trim().toLowerCase() === key);
+  if (existingIndex >= 0) {
+    const existing = voltaris.pendingTasks[existingIndex];
+    voltaris.pendingTasks[existingIndex] = {
+      ...pendingTask,
+      id: existing.id,
+      createdAt: existing.createdAt,
+    };
+  } else {
+    voltaris.pendingTasks.unshift(pendingTask);
+  }
+
+  voltaris.pendingTasks = voltaris.pendingTasks.slice(0, VOLTARIS_MAX_PENDING);
+  voltarisSave();
+  return { status: existingIndex >= 0 ? "updated" : "added", task: pendingTask };
+}
+
+function voltarisQueueDraftTask() {
+  const voltaris = getVoltarisState();
+  const draft = voltaris.flow.draft;
+  if (!draft.title.trim()) {
+    voltarisPushMessage("ai", "Give the habit a clear name first.");
+    return;
+  }
+  const result = voltarisUpsertPendingTask({
+    title: draft.title,
+    desc: draft.desc,
+    category: draft.category,
+    difficulty: draft.difficulty,
+    minutes: draft.minutes,
+    timeBlock: draft.timeBlock,
+    scheduleDays: draft.scheduleDays,
+    frequencyLabel: draft.frequencyLabel,
+  });
+
+  if (result.status === "exists") {
+    voltarisPushMessage("ai", `You already have “${draft.title}”. Try a different name.`);
+    return;
+  }
+
+  const scheduleLabel = result.task.frequencyLabel;
+  voltarisPushMessage(
+    "ai",
+    `Queued: ${result.task.title} (${scheduleLabel}, ${formatTimeBlock(result.task.timeBlock)}, ${result.task.weight} pts).`
+  );
+  voltarisSetFlow("idle", createVoltarisDraft(), "");
+}
+
+function voltarisRemovePendingTask(id) {
+  const voltaris = getVoltarisState();
+  voltaris.pendingTasks = voltaris.pendingTasks.filter((task) => task.id !== id);
+  voltarisSave({ render: true });
+}
+
+function voltarisApplyPendingTasks(taskIds = null) {
+  const voltaris = getVoltarisState();
+  const startDate = toISODate(activeDate);
+  const pending = Array.isArray(voltaris.pendingTasks) ? voltaris.pendingTasks : [];
+  const targets = taskIds
+    ? pending.filter((task) => taskIds.includes(task.id))
+    : pending.slice();
+
+  if (targets.length === 0) {
+    voltarisPushMessage("ai", "No pending tasks yet. Build one first.");
+    return;
+  }
+
+  let added = 0;
+  let skipped = 0;
+  for (const pendingTask of targets) {
+    if (hasTaskWithTitle(pendingTask.title)) {
+      skipped += 1;
+      continue;
+    }
+    const newTask = normalizeTask({
+      id: crypto.randomUUID(),
+      title: pendingTask.title,
+      desc: pendingTask.desc,
+      category: pendingTask.category,
+      weight: pendingTask.weight,
+      timeBlock: pendingTask.timeBlock,
+      scheduleDays: pendingTask.scheduleDays,
+      startDate,
+    });
+    state.tasks.unshift(newTask);
+    added += 1;
+  }
+
+  if (added === 0) {
+    voltarisPushMessage("ai", "Those tasks already exist. I didn’t add duplicates.");
+    return;
+  }
+
+  const remainingIds = new Set(targets.map((task) => task.id));
+  voltaris.pendingTasks = pending.filter((task) => !remainingIds.has(task.id));
+  normalizeAllDaysToTasks();
+  voltarisSave();
+  render();
+
+  const skippedNote = skipped > 0 ? ` Skipped ${skipped} duplicate${skipped > 1 ? "s" : ""}.` : "";
+  voltarisPushMessage("ai", `Added ${added} habit${added > 1 ? "s" : ""} starting ${startDate}.${skippedNote}`);
+}
+
+function voltarisSuggestRoutine() {
+  const voltaris = getVoltarisState();
+  const studyTarget = safeNumber(state.goals?.studyDaily);
+  const sleepTarget = safeNumber(state.goals?.sleepDaily);
+
+  const routineTemplates = [
+    {
+      title: "Morning ignition ritual",
+      desc: "Water, plan, and lock the MIT before distractions.",
+      category: "Mindset",
+      difficulty: 2,
+      minutes: 20,
+      timeBlock: "morning",
+      scheduleDays: DAY_ORDER.slice(),
+      frequencyLabel: "Daily",
+    },
+    {
+      title: studyTarget >= 6 ? "Deep work block (90m)" : "Deep work block (60m)",
+      desc: "Single-task your hardest priority.",
+      category: "Study",
+      difficulty: 4,
+      minutes: studyTarget >= 6 ? 90 : 60,
+      timeBlock: "morning",
+      scheduleDays: [1, 2, 3, 4, 5],
+      frequencyLabel: "Weekdays",
+    },
+    {
+      title: "Skill compounding",
+      desc: "Deliberate practice on the skill that pays.",
+      category: "Learning",
+      difficulty: 3,
+      minutes: studyTarget >= 6 ? 75 : 45,
+      timeBlock: "afternoon",
+      scheduleDays: [1, 2, 3, 4, 5],
+      frequencyLabel: "Weekdays",
+    },
+    {
+      title: "Training session",
+      desc: "Gym or hard movement. Keep it intense and short.",
+      category: "Fitness",
+      difficulty: 4,
+      minutes: 60,
+      timeBlock: "evening",
+      scheduleDays: [1, 3, 5, 6],
+      frequencyLabel: "4x / week",
+    },
+    {
+      title: sleepTarget >= 8 ? "Evening shutdown + sleep prep" : "Evening review + shutdown",
+      desc: "Review the day, set tomorrow, and protect sleep.",
+      category: "Mindset",
+      difficulty: 2,
+      minutes: 20,
+      timeBlock: "evening",
+      scheduleDays: DAY_ORDER.slice(),
+      frequencyLabel: "Daily",
+    },
+  ];
+
+  let added = 0;
+  let updated = 0;
+  let exists = 0;
+  for (const template of routineTemplates) {
+    const result = voltarisUpsertPendingTask(template);
+    if (result.status === "added") added += 1;
+    else if (result.status === "updated") updated += 1;
+    else if (result.status === "exists") exists += 1;
+  }
+
+  const parts = [];
+  if (added) parts.push(`queued ${added} new`);
+  if (updated) parts.push(`updated ${updated}`);
+  if (exists) parts.push(`${exists} already existed`);
+  const summary = parts.length ? parts.join(", ") : "nothing changed";
+  voltarisPushMessage(
+    "ai",
+    `Routine blueprint ready — ${summary}. Review the pending list, then add them when you’re ready.`
+  );
+}
+
+function voltarisStartHabitFlow(prefillTitle = "") {
+  const title = typeof prefillTitle === "string" ? prefillTitle.trim() : "";
+  voltarisSetFlow("ask_title", { title }, "habit");
+  if (title) {
+    voltarisPushMessage("ai", `Great. I’ll use “${title}”. What category should it live in?`);
+    voltarisSetFlow("ask_category");
+    return;
+  }
+  voltarisPushMessage("ai", "Let’s build a habit. What should we call it?");
+}
+
+function voltarisConfirmDraftMessage(draft) {
+  const weight = computeVoltarisWeight(draft.difficulty, draft.minutes);
+  const scheduleLabel = draft.frequencyLabel || formatScheduleDays(draft.scheduleDays);
+  return [
+    `Here’s the build:`,
+    `${draft.title} — ${draft.category}`,
+    `${scheduleLabel} • ${formatTimeBlock(draft.timeBlock)}`,
+    `${draft.minutes} min • difficulty ${draft.difficulty}/5 • ${weight} pts`,
+    "Type “add” to queue it, or “cancel”.",
+  ].join("\n");
+}
+
+function voltarisHandleFlowInput(text) {
+  const voltaris = getVoltarisState();
+  const flow = voltaris.flow;
+  const draft = flow.draft;
+  const lower = text.trim().toLowerCase();
+
+  if (flow.step === "confirm") {
+    if (["add", "yes", "confirm", "queue"].some((word) => lower.includes(word))) {
+      voltarisQueueDraftTask();
+      return;
+    }
+    if (["cancel", "stop", "no"].some((word) => lower.includes(word))) {
+      voltarisSetFlow("idle", createVoltarisDraft(), "");
+      voltarisPushMessage("ai", "Cancelled. If you want, we can try again with a new habit.");
+      return;
+    }
+    voltarisPushMessage("ai", "Type “add” to queue it, or “cancel”.");
+    return;
+  }
+
+  if (flow.step === "ask_title") {
+    const title = text.trim();
+    if (!title) {
+      voltarisPushMessage("ai", "Give it a short, clear name.");
+      return;
+    }
+    voltarisSetFlow("ask_category", { title });
+    voltarisPushMessage("ai", "Nice. What category fits best? (e.g., Study, Fitness, Mindset)");
+    return;
+  }
+
+  if (flow.step === "ask_category") {
+    const category = parseVoltarisCategory(text);
+    voltarisSetFlow("ask_frequency", { category });
+    voltarisPushMessage("ai", "How often should it happen? (daily, weekdays, mwf, weekends, or once)");
+    return;
+  }
+
+  if (flow.step === "ask_frequency") {
+    const freq = parseVoltarisFrequency(text);
+    voltarisSetFlow("ask_difficulty", {
+      scheduleDays: freq.scheduleDays,
+      frequencyLabel: freq.label,
+    });
+    voltarisPushMessage("ai", "How hard is it on a 1-5 scale?");
+    return;
+  }
+
+  if (flow.step === "ask_difficulty") {
+    const difficulty = parseVoltarisDifficulty(text);
+    if (!difficulty) {
+      voltarisPushMessage("ai", "Give me a number 1-5 (or say easy, medium, hard).");
+      return;
+    }
+    voltarisSetFlow("ask_duration", { difficulty });
+    voltarisPushMessage("ai", "How long does it take? (minutes or hours)");
+    return;
+  }
+
+  if (flow.step === "ask_duration") {
+    const minutes = parseVoltarisDurationMinutes(text);
+    if (!minutes) {
+      voltarisPushMessage("ai", "Give me a duration like 20, 45m, or 1.5h.");
+      return;
+    }
+    voltarisSetFlow("ask_block", { minutes });
+    voltarisPushMessage("ai", "When should it happen? (morning, afternoon, evening, or any)");
+    return;
+  }
+
+  if (flow.step === "ask_block") {
+    const timeBlock = parseVoltarisTimeBlock(text);
+    const nextFlow = voltarisSetFlow("confirm", { timeBlock });
+    voltarisPushMessage("ai", voltarisConfirmDraftMessage(nextFlow.draft));
+    return;
+  }
+}
+
+function voltarisHandleIdleInput(text) {
+  const lower = text.trim().toLowerCase();
+  if (!lower) return;
+
+  const wantsRoutine = ["routine", "plan my day", "blueprint", "template"].some((key) => lower.includes(key));
+  if (wantsRoutine) {
+    voltarisSuggestRoutine();
+    return;
+  }
+
+  const wantsHabit = ["habit", "task", "build", "add"].some((key) => lower.includes(key));
+  if (wantsHabit) {
+    const titleHint = text.replace(/add|habit|task|build/gi, "").trim();
+    voltarisStartHabitFlow(titleHint);
+    return;
+  }
+
+  if (lower.includes("help")) {
+    voltarisPushMessage(
+      "ai",
+      "Say “build a habit” or tap the buttons. I’ll ask difficulty and duration, then score it for you."
+    );
+    return;
+  }
+
+  voltarisPushMessage(
+    "ai",
+    "I can build habits and routines for you. Try “build a habit” or “plan a routine”."
+  );
+}
+
+function handleVoltarisSend() {
+  if (!el.voltarisInput) return;
+  const text = (el.voltarisInput.value ?? "").trim();
+  if (!text) return;
+  el.voltarisInput.value = "";
+  voltarisPushMessage("user", text, { render: false });
+  const voltaris = getVoltarisState();
+  if (voltaris.flow.step !== "idle") {
+    voltarisHandleFlowInput(text);
+  } else {
+    voltarisHandleIdleInput(text);
+  }
+  renderVoltaris();
+}
+
+function renderVoltarisMessages(voltaris) {
+  if (!el.voltarisChatLog) return;
+  el.voltarisChatLog.innerHTML = "";
+  for (const message of voltaris.messages) {
+    const row = document.createElement("div");
+    row.className = `voltarisMsg voltarisMsg--${message.role}`;
+    const bubble = document.createElement("div");
+    bubble.className = "voltarisBubble";
+    bubble.textContent = message.text;
+    row.appendChild(bubble);
+    el.voltarisChatLog.appendChild(row);
+  }
+  el.voltarisChatLog.scrollTop = el.voltarisChatLog.scrollHeight;
+}
+
+function renderVoltarisPending(voltaris) {
+  if (!el.voltarisPendingList || !el.voltarisPendingMeta) return;
+  const pending = Array.isArray(voltaris.pendingTasks) ? voltaris.pendingTasks : [];
+  el.voltarisPendingList.innerHTML = "";
+
+  if (el.voltarisAddPendingBtn) {
+    el.voltarisAddPendingBtn.disabled = pending.length === 0;
+  }
+
+  if (pending.length === 0) {
+    el.voltarisPendingMeta.textContent = "No pending habits";
+    const empty = document.createElement("div");
+    empty.className = "emptyState";
+    empty.textContent = "Voltaris will queue habits here before adding them.";
+    el.voltarisPendingList.appendChild(empty);
+    return;
+  }
+
+  const startDate = toISODate(activeDate);
+  el.voltarisPendingMeta.textContent = `${pending.length} pending • starts ${startDate}`;
+
+  for (const task of pending) {
+    const item = document.createElement("div");
+    item.className = "item";
+
+    const top = document.createElement("div");
+    top.className = "item__top";
+
+    const title = document.createElement("div");
+    title.className = "item__title";
+    title.textContent = task.title;
+
+    const actions = document.createElement("div");
+    actions.className = "item__actions";
+
+    const addBtn = document.createElement("button");
+    addBtn.className = "smallBtn";
+    addBtn.type = "button";
+    addBtn.textContent = "Add";
+    addBtn.addEventListener("click", () => {
+      voltarisApplyPendingTasks([task.id]);
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "smallBtn";
+    removeBtn.type = "button";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => {
+      voltarisRemovePendingTask(task.id);
+    });
+
+    actions.appendChild(addBtn);
+    actions.appendChild(removeBtn);
+
+    top.appendChild(title);
+    top.appendChild(actions);
+
+    const meta = document.createElement("div");
+    meta.className = "item__meta";
+    meta.textContent = `${task.category} • ${task.frequencyLabel} • ${formatTimeBlock(task.timeBlock)} • ${task.weight} pts`;
+
+    const hint = document.createElement("div");
+    hint.className = "muted";
+    hint.style.marginTop = "6px";
+    hint.textContent = task.reason;
+
+    item.appendChild(top);
+    item.appendChild(meta);
+    item.appendChild(hint);
+    el.voltarisPendingList.appendChild(item);
+  }
+}
+
+function renderVoltaris() {
+  const voltaris = getVoltarisState();
+  renderVoltarisMessages(voltaris);
+  renderVoltarisPending(voltaris);
+}
+
 function buildPerfectDot(dateObj) {
   const iso = toISODate(dateObj);
   const dueTasks = getDueTasksForDate(dateObj);
@@ -5274,6 +6035,7 @@ function normalizeImportedState(maybeState) {
       : { studyDaily: 0, earningsDaily: 0, sleepDaily: 8 },
     profile: normalizeProfile(maybeState.profile),
     friends: normalizeFriends(maybeState.friends),
+    voltaris: normalizeVoltarisState(maybeState.voltaris),
     mantra: typeof maybeState.mantra === "string" ? maybeState.mantra : "",
     vision: typeof maybeState.vision === "object" && maybeState.vision
       ? { oneYear: maybeState.vision.oneYear ?? "", fiveYear: maybeState.vision.fiveYear ?? "" }
@@ -5406,6 +6168,7 @@ function render() {
   renderAchievements();
   renderHistory();
   renderTaskStats();
+  renderVoltaris();
   renderTaskManager();
   renderAntiHabitManager();
   renderSocialSteps();
@@ -5527,11 +6290,7 @@ function bindEvents() {
     rec.studyHours = safeNumber(el.studyHours.value);
     saveState(state);
     renderDailyScorecard();
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
+    scheduleProgressRefresh();
   });
 
   el.earnings.addEventListener("input", () => {
@@ -5540,11 +6299,7 @@ function bindEvents() {
     rec.earnings = safeNumber(el.earnings.value);
     saveState(state);
     renderDailyScorecard();
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
+    scheduleProgressRefresh();
   });
 
   el.tabWins.addEventListener("click", () => setNotesTab("wins"));
@@ -5744,7 +6499,7 @@ function bindEvents() {
     saveState(state);
     renderMoodEnergy(rec.checkin.mood, rec.checkin.energy);
     renderAutoInsights();
-    renderCharts();
+    scheduleChartsRefresh();
   };
 
   const setEnergyValue = (value) => {
@@ -5754,7 +6509,7 @@ function bindEvents() {
     saveState(state);
     renderMoodEnergy(rec.checkin.mood, rec.checkin.energy);
     renderAutoInsights();
-    renderCharts();
+    scheduleChartsRefresh();
   };
 
   el.moodInput?.addEventListener("input", () => {
@@ -5781,11 +6536,7 @@ function bindEvents() {
     rec.checkin.sleep = clamp(safeNumber(el.sleepInput.value), 0, 24);
     saveState(state);
     renderCheckin(iso);
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
+    scheduleProgressRefresh();
   });
 
   el.focusStartBtn?.addEventListener("click", () => startFocusTimer(el.focusLabel?.value ?? ""));
@@ -5873,8 +6624,7 @@ function bindEvents() {
     state.profile = normalizeProfile({ ...current, username: el.profileNameInput.value });
     saveState(state);
     const snapshot = computeAllTimeXp();
-    renderProfileCommunity(snapshot);
-    renderCommunityLeaderboard(snapshot);
+    refreshProgressionUI(snapshot);
   });
 
   const addFriend = () => {
@@ -5893,9 +6643,8 @@ function bindEvents() {
     if (el.friendNameInput) el.friendNameInput.value = "";
     if (el.friendXpInput) el.friendXpInput.value = "";
     saveState(state);
-    renderFriendsManager();
     const snapshot = computeAllTimeXp();
-    renderCommunityLeaderboard(snapshot);
+    refreshProgressionUI(snapshot);
   };
 
   el.addFriendBtn?.addEventListener("click", addFriend);
@@ -5906,16 +6655,24 @@ function bindEvents() {
     if (e.key === "Enter") addFriend();
   });
 
+  el.voltarisSendBtn?.addEventListener("click", () => handleVoltarisSend());
+  el.voltarisInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleVoltarisSend();
+    }
+  });
+  el.voltarisBuildBtn?.addEventListener("click", () => voltarisStartHabitFlow());
+  el.voltarisRoutineBtn?.addEventListener("click", () => voltarisSuggestRoutine());
+  el.voltarisResetBtn?.addEventListener("click", () => resetVoltaris());
+  el.voltarisAddPendingBtn?.addEventListener("click", () => voltarisApplyPendingTasks());
+
   el.goalStudyInput?.addEventListener("input", () => {
     state.goals.studyDaily = Math.max(0, safeNumber(el.goalStudyInput.value));
     saveState(state);
     renderGoals();
     renderDailyScorecard();
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
+    scheduleProgressRefresh();
   });
 
   el.goalEarningsInput?.addEventListener("input", () => {
@@ -5923,11 +6680,7 @@ function bindEvents() {
     saveState(state);
     renderGoals();
     renderDailyScorecard();
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
+    scheduleProgressRefresh();
   });
 
   el.goalSleepInput?.addEventListener("input", () => {
@@ -5935,11 +6688,7 @@ function bindEvents() {
     saveState(state);
     renderGoals();
     renderCheckin(toISODate(activeDate));
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
+    scheduleProgressRefresh();
   });
 
   el.mantraInput?.addEventListener("input", () => {
@@ -6005,11 +6754,7 @@ function bindEvents() {
     }
     saveState(state);
     renderAntiHabits(iso);
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
+    scheduleProgressRefresh();
   });
 
   el.antiClearBtn?.addEventListener("click", () => {
@@ -6020,11 +6765,7 @@ function bindEvents() {
     }
     saveState(state);
     renderAntiHabits(iso);
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
+    scheduleProgressRefresh();
   });
 
   const setSocialChallenge = (nextChallenge) => {
@@ -6033,11 +6774,6 @@ function bindEvents() {
     rec.socialChallenge = normalizeSocialChallenge(nextChallenge);
     saveState(state);
     renderSocialMomentum(iso);
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
   };
 
   el.socialNewBtn?.addEventListener("click", () => {
@@ -6057,11 +6793,7 @@ function bindEvents() {
     rec.socialChallenge = challenge;
     saveState(state);
     renderSocialMomentum(iso);
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
+    scheduleProgressRefresh();
   });
 
   const addReachout = () => {
@@ -6083,11 +6815,7 @@ function bindEvents() {
     if (el.socialReachNote) el.socialReachNote.value = "";
     saveState(state);
     renderSocialMomentum(iso);
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
+    scheduleProgressRefresh();
   };
 
   el.socialReachAddBtn?.addEventListener("click", addReachout);
@@ -6241,11 +6969,7 @@ function bindEvents() {
     renderWeeklyReview();
     renderFlowReview(iso);
     renderFlowHeader(iso);
-    renderSummary();
-    refreshProgressionUI();
-    renderLeaderboard();
-    renderAutoInsights();
-    renderCharts();
+    scheduleProgressRefresh();
   });
 
   el.rangeWeek.addEventListener("click", () => setActiveRange("week"));
@@ -6292,7 +7016,8 @@ function bindEvents() {
     const category = normalizeCategory(el.taskCategoryInput?.value ?? "");
     const weight = normalizeWeight(el.taskWeightInput?.value ?? 1);
     if (!title) return;
-    state.tasks.unshift({
+    const startDate = toISODate(activeDate);
+    const newTask = normalizeTask({
       id: crypto.randomUUID(),
       title,
       desc: desc || "",
@@ -6300,7 +7025,9 @@ function bindEvents() {
       weight,
       timeBlock: "any",
       scheduleDays: DAY_ORDER.slice(),
+      startDate,
     });
+    state.tasks.unshift(newTask);
     el.taskTitleInput.value = "";
     el.taskDescInput.value = "";
     if (el.taskCategoryInput) el.taskCategoryInput.value = "";
