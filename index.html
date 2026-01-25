@@ -1,0 +1,1334 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Self Improvement Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bgStage" aria-hidden="true">
+    <span class="bgStage__layer"></span>
+    <span class="bgStage__layer"></span>
+    <span class="bgStage__layer"></span>
+    <span class="bgStage__layer"></span>
+    <span class="bgStage__layer"></span>
+    <span class="bgStage__layer"></span>
+    <span class="bgStage__layer"></span>
+    <span class="bgStage__layer"></span>
+    <span class="bgStage__layer"></span>
+    <span class="bgStage__layer"></span>
+  </div>
+  <div class="app" id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__mark" aria-hidden="true"></div>
+        <div class="brand__text">
+          <div class="brand__title">Self Improvement</div>
+          <div class="brand__subtitle" id="subtitle">Daily • Weekly • Monthly • Yearly</div>
+          <div class="brand__mantra" id="mantraDisplay"></div>
+        </div>
+      </div>
+
+      <div class="topbar__right">
+        <div class="streak" title="Current streak">
+          <div class="streak__label">Streak</div>
+          <div class="streak__value" id="streakValue">0</div>
+        </div>
+        <div class="levelPill" title="Level and XP">
+          <div class="levelPill__top">
+            <div class="levelPill__label">Level</div>
+            <div class="levelPill__value" id="levelValue">1</div>
+          </div>
+          <div class="miniBar" aria-hidden="true">
+            <div class="miniBar__fill" id="levelBar" style="width:0%"></div>
+          </div>
+          <div class="levelPill__meta" id="levelMeta">0 / 120 XP</div>
+        </div>
+        <a class="btn btn--ghost" id="gymLink" href="../GymTracker/index.html">Gym</a>
+        <button class="btn btn--ghost" id="focusModeBtn" type="button">Focus Mode</button>
+        <button class="btn btn--ghost" id="flowModeBtn" type="button">Daily Flow</button>
+        <div class="dataMenu" id="dataMenu">
+          <button class="btn btn--ghost" id="dataMenuBtn" type="button" aria-expanded="false" aria-haspopup="true">
+            Data ▾
+          </button>
+          <div class="dataMenu__panel" id="dataMenuPanel" role="menu" aria-hidden="true">
+            <button class="dataMenu__item" id="importBtn" type="button" role="menuitem">Import</button>
+            <button class="dataMenu__item" id="exportBtn" type="button" role="menuitem">Export</button>
+            <button class="dataMenu__item" id="exportCsvBtn" type="button" role="menuitem">Export CSV</button>
+            <button class="dataMenu__item dataMenu__item--danger" id="resetBtn" type="button" role="menuitem">Reset</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="panel panel--flow" id="flowPanel" aria-hidden="true">
+        <div class="panel__header">
+          <div class="panel__title">Daily Flow</div>
+          <div class="flowMeta">
+            <div class="flowDate" id="flowDateLabel">Today</div>
+            <div class="flowProgress">
+              <div class="flowProgress__label" id="flowProgressLabel">0/4 steps</div>
+              <div class="bar">
+                <div class="bar__fill" id="flowProgressBar" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="panel__body flowBody">
+          <div class="card flowStep">
+            <div class="card__head">
+              <div class="card__title">1. Checklist</div>
+              <div class="card__meta" id="flowChecklistMeta">0 / 0</div>
+            </div>
+            <div class="card__body">
+              <div class="mitBlock" id="flowMitBlock">
+                <div class="mitLabel">Most Important Task</div>
+                <div class="row">
+                  <input class="field__input" id="flowMitInput" type="text" placeholder="Today's most important thing" />
+                  <button class="smallBtn" id="flowMitDoneBtn" type="button">Mark done</button>
+                </div>
+                <div class="muted" id="flowMitStatus">Not set</div>
+              </div>
+              <div class="flowFilters">
+                <div class="filterRow" id="flowBlockFilters" aria-label="Flow time blocks"></div>
+                <button class="smallBtn" id="flowShowAllBtn" type="button">Show all</button>
+              </div>
+              <div class="filterRow" id="flowCategoryFilters" aria-label="Flow category filters"></div>
+              <div id="flowTaskList" aria-label="Flow tasks"></div>
+            </div>
+          </div>
+
+          <div class="card flowStep">
+            <div class="card__head">
+              <div class="card__title">2. Focus Timer</div>
+              <div class="card__meta" id="flowFocusMeta">0h this week</div>
+            </div>
+            <div class="card__body">
+              <div class="focusTimer focusTimer--compact">
+                <div class="focusTimer__time" id="flowFocusTime">00:00</div>
+                <div class="row">
+                  <input class="field__input" id="flowFocusLabel" type="text" placeholder="What are you working on?" />
+                  <button class="btn" id="flowFocusStartBtn" type="button">Start</button>
+                  <button class="btn btn--ghost" id="flowFocusStopBtn" type="button">Stop</button>
+                </div>
+                <div class="muted" id="flowFocusStatus">Idle</div>
+              </div>
+              <div class="list" id="flowFocusList"></div>
+            </div>
+          </div>
+
+          <div class="card flowStep">
+            <div class="card__head">
+              <div class="card__title">3. Notes</div>
+              <div class="card__meta" id="flowNotesSavedAt">Last saved: —</div>
+            </div>
+            <div class="card__body flowNotes">
+              <div class="field">
+                <label class="field__label" for="flowNotesWins">Wins</label>
+                <textarea class="textarea textarea--compact" id="flowNotesWins" rows="4" placeholder="What went well?"></textarea>
+              </div>
+              <div class="field">
+                <label class="field__label" for="flowNotesLessons">Lessons</label>
+                <textarea class="textarea textarea--compact" id="flowNotesLessons" rows="4" placeholder="What to improve?"></textarea>
+              </div>
+              <div class="field">
+                <label class="field__label" for="flowNotesTomorrow">Tomorrow</label>
+                <textarea class="textarea textarea--compact" id="flowNotesTomorrow" rows="4" placeholder="Top priorities for tomorrow"></textarea>
+              </div>
+              <div class="flowReflection">
+                <div class="field">
+                  <label class="field__label" for="flowIntentionInput">Daily intention</label>
+                  <input class="field__input" id="flowIntentionInput" type="text" placeholder="How do you want to show up?" />
+                </div>
+                <div class="field">
+                  <label class="field__label" for="flowLessonInput">Lesson learned</label>
+                  <textarea class="textarea textarea--compact" id="flowLessonInput" rows="3" placeholder="What did today teach you?"></textarea>
+                </div>
+                <div class="field">
+                  <label class="field__label" for="flowGratitude1">Gratitude</label>
+                  <div class="gratitudeGrid gratitudeGrid--compact">
+                    <input class="field__input" id="flowGratitude1" type="text" placeholder="Grateful for..." />
+                    <input class="field__input" id="flowGratitude2" type="text" placeholder="Grateful for..." />
+                    <input class="field__input" id="flowGratitude3" type="text" placeholder="Grateful for..." />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card flowStep">
+            <div class="card__head">
+              <div class="card__title">4. Review & End Day</div>
+              <div class="card__meta">Wrap it up</div>
+            </div>
+            <div class="card__body">
+              <div class="kpis kpis--flow" id="flowReviewSummary"></div>
+              <div class="row" style="margin-top:12px">
+                <button class="btn" id="flowEndDayBtn" type="button">End Day</button>
+                <div class="muted" id="flowEndDayStatus">Not ended yet.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel--left">
+        <div class="panel__header">
+          <div class="panel__title">Today</div>
+          <div class="dateNav" aria-label="Date navigation">
+            <button class="iconBtn" id="prevDayBtn" type="button" aria-label="Previous day">←</button>
+            <button class="datePill" id="datePill" type="button" aria-label="Select date"></button>
+            <button class="iconBtn" id="nextDayBtn" type="button" aria-label="Next day">→</button>
+          </div>
+        </div>
+
+        <div class="panel__body">
+          <div class="card focusLane" id="focusLaneCard" data-focus-hide="true">
+            <div class="card__head">
+              <div class="card__title">Now Focus</div>
+              <div class="card__meta" id="focusLaneBlock">—</div>
+            </div>
+            <div class="card__body">
+              <div class="focusLane__row">
+                <div class="focusLane__item">
+                  <div class="focusLane__label">MIT</div>
+                  <div class="focusLane__value" id="focusLaneMit">Not set</div>
+                </div>
+                <div class="focusLane__item">
+                  <div class="focusLane__label">Intention</div>
+                  <div class="focusLane__value" id="focusLaneIntention">—</div>
+                </div>
+                <div class="focusLane__item">
+                  <div class="focusLane__label">Due now</div>
+                  <div class="focusLane__value" id="focusLaneTasks">0 / 0</div>
+                </div>
+              </div>
+              <div class="row">
+                <input class="field__input" id="focusLaneLabel" type="text" placeholder="Focus label (optional)" />
+                <button class="btn" id="focusLaneStartBtn" type="button">Start focus</button>
+                <button class="btn btn--ghost" id="focusLaneChecklistBtn" type="button">Checklist</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card__head">
+              <div class="card__title">Daily scorecard</div>
+              <div class="card__meta">Today at a glance</div>
+            </div>
+            <div class="card__body">
+              <div class="kpis kpis--score">
+                <div class="kpi">
+                  <div class="kpi__label">Completion</div>
+                  <div class="kpi__value" id="dailyCompletion">0%</div>
+                </div>
+                <div class="kpi">
+                  <div class="kpi__label">Score</div>
+                  <div class="kpi__value" id="dailyScore">0%</div>
+                  <div class="kpi__meta" id="dailyPoints">0 / 0 pts</div>
+                </div>
+                <div class="kpi">
+                  <div class="kpi__label">Study hours</div>
+                  <div class="kpi__value" id="dailyStudy">0</div>
+                </div>
+                <div class="kpi">
+                  <div class="kpi__label">Earnings</div>
+                  <div class="kpi__value" id="dailyEarnings">0</div>
+                </div>
+                <div class="kpi">
+                  <div class="kpi__label">Streak</div>
+                  <div class="kpi__value" id="dailyStreak">0</div>
+                </div>
+              </div>
+              <div class="scoreBars">
+                <div class="scoreBar">
+                  <div class="scoreBar__top">
+                    <div class="scoreBar__label">Study target</div>
+                    <div class="scoreBar__value" id="dailyStudyTarget">0 / 0h</div>
+                  </div>
+                  <div class="bar">
+                    <div class="bar__fill" id="dailyStudyBar" style="width:0%"></div>
+                  </div>
+                </div>
+                <div class="scoreBar">
+                  <div class="scoreBar__top">
+                    <div class="scoreBar__label">Earnings target</div>
+                    <div class="scoreBar__value" id="dailyEarningsTarget">$0 / $0</div>
+                  </div>
+                  <div class="bar">
+                    <div class="bar__fill" id="dailyEarningsBar" style="width:0%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" id="dailyChecklistCard">
+            <div class="card__head">
+              <div class="card__title">Daily Checklist</div>
+              <div class="card__headRight">
+                <div class="card__meta" id="dailyCompletionMeta">0 / 0</div>
+                <div class="card__actions" aria-label="Daily quick actions">
+                  <button class="smallBtn" id="markAllBtn" type="button">Mark all</button>
+                  <button class="smallBtn" id="clearChecklistBtn" type="button">Clear</button>
+                  <button class="smallBtn" id="copyYesterdayPlanBtn" type="button">Copy plan</button>
+                </div>
+              </div>
+            </div>
+            <div class="card__body">
+              <div class="mitBlock" id="mitBlock">
+                <div class="mitLabel">Most Important Task</div>
+                <div class="row">
+                  <input class="field__input" id="mitInput" type="text" placeholder="Today's most important thing" />
+                  <button class="smallBtn" id="mitDoneBtn" type="button">Mark done</button>
+                </div>
+                <div class="muted" id="mitStatus">Not set</div>
+              </div>
+              <div class="taskFilters">
+                <div class="filterRow" id="categoryFilters" aria-label="Category filters"></div>
+                <button class="smallBtn" id="showAllTasksBtn" type="button">Show all</button>
+              </div>
+              <div id="taskList" aria-label="Daily tasks"></div>
+            </div>
+          </div>
+
+          <div class="card" data-focus-hide="true">
+            <div class="card__head">
+              <div class="card__title">Anti-habits</div>
+              <div class="card__headRight">
+                <div class="card__meta" id="antiHabitsMeta">0 / 0</div>
+                <div class="card__actions">
+                  <button class="smallBtn" id="antiMarkAllBtn" type="button">Mark clean</button>
+                  <button class="smallBtn" id="antiClearBtn" type="button">Reset</button>
+                </div>
+              </div>
+            </div>
+            <div class="card__body">
+              <div class="list" id="antiHabitsList" aria-label="Anti habits"></div>
+              <div class="muted">Track the habits you avoided today.</div>
+            </div>
+          </div>
+
+          <div class="card" data-focus-hide="true">
+            <div class="card__head">
+              <div class="card__title">Social Momentum</div>
+              <div class="card__meta" id="socialChallengeStatus">Pick a challenge</div>
+            </div>
+            <div class="card__body">
+              <div class="socialChallenge">
+                <div class="socialChallenge__label">Today's challenge</div>
+                <div class="socialChallenge__text" id="socialChallengeText">Not set yet.</div>
+                <div class="row" style="margin-top:8px">
+                  <button class="smallBtn" id="socialNewBtn" type="button">New challenge</button>
+                  <button class="smallBtn" id="socialDoneBtn" type="button">Mark done</button>
+                </div>
+              </div>
+              <div class="socialReach">
+                <div class="socialReach__label">Reach-outs</div>
+                <div class="row">
+                  <select class="field__input" id="socialReachType">
+                    <option value="Text">Text</option>
+                    <option value="Call">Call</option>
+                    <option value="DM">DM</option>
+                    <option value="IRL">IRL</option>
+                  </select>
+                  <input class="field__input" id="socialReachWho" type="text" placeholder="Who (optional)" />
+                  <input class="field__input" id="socialReachNote" type="text" placeholder="Note (optional)" />
+                  <button class="btn" id="socialReachAddBtn" type="button">Log</button>
+                </div>
+                <div class="muted" id="socialReachMeta">0 today</div>
+                <div class="list" id="socialReachList" aria-label="Reach out log"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid2" data-focus-hide="true">
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Study / Work</div>
+                <div class="card__meta">Hours</div>
+              </div>
+              <div class="card__body">
+                <div class="field">
+                  <label class="field__label" for="studyHours">Hours today</label>
+                  <input class="field__input" id="studyHours" type="number" inputmode="decimal" min="0" step="0.25" placeholder="e.g. 10" />
+                </div>
+                <div class="hint">Target: <span id="studyTargetHint">0</span> hours</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Earnings</div>
+                <div class="card__meta">Daily</div>
+              </div>
+              <div class="card__body">
+                <div class="field">
+                  <label class="field__label" for="earnings">Amount today</label>
+                  <input class="field__input" id="earnings" type="number" inputmode="decimal" min="0" step="0.01" placeholder="e.g. 50" />
+                </div>
+                <div class="hint">Target: <span id="earningsTargetHint">0</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" data-focus-hide="true">
+            <div class="card__head">
+              <div class="card__title">Daily Check-in</div>
+              <div class="card__meta">Mood • Energy • Sleep</div>
+            </div>
+            <div class="card__body">
+              <div class="grid3">
+                <div class="field">
+                  <label class="field__label" for="moodInput">Mood</label>
+                  <div class="sliderRow">
+                    <span class="sliderEmoji" id="moodEmoji" aria-hidden="true">😐</span>
+                    <input class="slider" id="moodInput" type="range" min="0" max="5" step="1" value="0" />
+                    <span class="sliderLabel" id="moodLabel">Not set</span>
+                    <button class="smallBtn" id="moodClearBtn" type="button">Clear</button>
+                  </div>
+                  <div class="hint">0 = not set, 5 = great</div>
+                </div>
+                <div class="field">
+                  <label class="field__label" for="energyInput">Energy</label>
+                  <div class="sliderRow">
+                    <span class="sliderEmoji" id="energyEmoji" aria-hidden="true">🔋</span>
+                    <input class="slider" id="energyInput" type="range" min="0" max="5" step="1" value="0" />
+                    <span class="sliderLabel" id="energyLabel">Not set</span>
+                    <button class="smallBtn" id="energyClearBtn" type="button">Clear</button>
+                  </div>
+                  <div class="hint">0 = not set, 5 = full</div>
+                </div>
+                <div class="field">
+                  <label class="field__label" for="sleepInput">Sleep hours</label>
+                  <input class="field__input" id="sleepInput" type="number" inputmode="decimal" min="0" max="24" step="0.25" placeholder="e.g. 7.5" />
+                  <div class="sleepScore">
+                    <div class="sleepScore__value" id="sleepScoreValue">0%</div>
+                    <div class="sleepScore__label" id="sleepScoreLabel">Target —</div>
+                  </div>
+                  <div class="hint">Hours slept last night</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" data-focus-hide="true">
+            <div class="card__head">
+              <div class="card__title">Temptation Log</div>
+              <div class="card__meta temptationMeta" id="temptationMeta">0 today</div>
+            </div>
+            <div class="card__body">
+              <div class="grid2">
+                <div class="field">
+                  <label class="field__label" for="temptationTrigger">Trigger</label>
+                  <input class="field__input" id="temptationTrigger" type="text" placeholder="What set it off?" />
+                </div>
+                <div class="field">
+                  <label class="field__label" for="temptationUrgeInput">Urge intensity</label>
+                  <div class="sliderRow">
+                    <span class="sliderEmoji" id="temptationEmoji" aria-hidden="true">😐</span>
+                    <input class="slider" id="temptationUrgeInput" type="range" min="0" max="5" step="1" value="0" />
+                    <span class="sliderLabel" id="temptationLabel">Not set</span>
+                  </div>
+                </div>
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label class="field__label" for="temptationWant">What I wanted to do</label>
+                <input class="field__input" id="temptationWant" type="text" placeholder="Name the urge" />
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label class="field__label" for="temptationDid">What I did instead</label>
+                <input class="field__input" id="temptationDid" type="text" placeholder="Replacement action" />
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label class="field__label" for="temptationNote">Notes</label>
+                <textarea class="textarea textarea--compact" id="temptationNote" rows="3" placeholder="How it felt, what helped..."></textarea>
+              </div>
+              <div class="row" style="margin-top:12px">
+                <button class="btn" id="temptationAddBtn" type="button">Log urge</button>
+                <button class="btn btn--ghost" id="temptationClearBtn" type="button">Clear</button>
+              </div>
+              <div class="list" id="temptationList" aria-label="Temptation log"></div>
+            </div>
+          </div>
+
+          <div class="card" data-focus-hide="true">
+            <div class="card__head">
+              <div class="card__title">Root Cause Review</div>
+              <div class="card__meta" id="slipMeta">0 today</div>
+            </div>
+            <div class="card__body">
+              <div class="field">
+                <label class="field__label" for="slipWhat">What happened</label>
+                <input class="field__input" id="slipWhat" type="text" placeholder="Describe what you did" />
+              </div>
+              <div class="grid2" style="margin-top:10px">
+                <div class="field">
+                  <label class="field__label" for="slipWhy">Why I did it</label>
+                  <textarea class="textarea textarea--compact" id="slipWhy" rows="3" placeholder="What was going on in the moment?"></textarea>
+                </div>
+                <div class="field">
+                  <label class="field__label" for="slipRoot">Root cause</label>
+                  <textarea class="textarea textarea--compact" id="slipRoot" rows="3" placeholder="Trigger, belief, unmet need, habit loop"></textarea>
+                </div>
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label class="field__label" for="slipNext">Next time I will</label>
+                <input class="field__input" id="slipNext" type="text" placeholder="A better response or plan" />
+              </div>
+              <div class="row" style="margin-top:12px">
+                <button class="btn" id="slipAddBtn" type="button">Log reflection</button>
+                <button class="btn btn--ghost" id="slipClearBtn" type="button">Clear</button>
+              </div>
+              <div class="list" id="slipList" aria-label="Root cause reflections"></div>
+            </div>
+          </div>
+
+          <div class="card" data-focus-hide="true">
+            <div class="card__head">
+              <div class="card__title">Focus Timer</div>
+              <div class="card__meta" id="focusWeekTotal">0h this week</div>
+            </div>
+            <div class="card__body">
+              <div class="focusTimer">
+                <div class="focusTimer__time" id="focusTime">00:00</div>
+                <div class="row">
+                  <input class="field__input" id="focusLabel" type="text" placeholder="What are you working on?" />
+                  <button class="btn" id="focusStartBtn" type="button">Start</button>
+                  <button class="btn btn--ghost" id="focusStopBtn" type="button">Stop</button>
+                </div>
+                <div class="muted" id="focusStatus">Idle</div>
+              </div>
+              <div class="list" id="focusList"></div>
+            </div>
+          </div>
+
+          <div class="card" data-focus-hide="true">
+            <div class="card__head">
+              <div class="card__title">Weekly Priorities</div>
+              <div class="card__meta" id="weekLabel">Week of —</div>
+            </div>
+            <div class="card__body">
+              <div class="field">
+                <label class="field__label" for="priority1">Priority 1</label>
+                <input class="field__input" id="priority1" type="text" placeholder="Most important win…" />
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label class="field__label" for="priority2">Priority 2</label>
+                <input class="field__input" id="priority2" type="text" placeholder="Second important win…" />
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label class="field__label" for="priority3">Priority 3</label>
+                <input class="field__input" id="priority3" type="text" placeholder="Third important win…" />
+              </div>
+              <div class="row" style="margin-top:12px">
+                <button class="btn" id="copyPrioritiesBtn" type="button">Copy to tomorrow</button>
+                <button class="btn btn--ghost" id="clearPrioritiesBtn" type="button">Clear</button>
+              </div>
+              <div class="muted">Top 3 priorities for the week.</div>
+            </div>
+          </div>
+
+          <div class="card" data-focus-hide="true">
+            <div class="card__head">
+              <div class="card__title">Daily Notes</div>
+              <div class="card__meta">Prompted reflection</div>
+            </div>
+            <div class="card__body">
+              <div class="tabs" role="tablist" aria-label="Daily notes">
+                <button class="tab is-active" id="tabWins" type="button" role="tab" aria-selected="true">Wins</button>
+                <button class="tab" id="tabLessons" type="button" role="tab" aria-selected="false">Lessons</button>
+                <button class="tab" id="tabTomorrow" type="button" role="tab" aria-selected="false">Tomorrow</button>
+              </div>
+              <div class="row">
+                <input class="field__input" id="notesTagsInput" type="text" placeholder="Tags (e.g. focus, health)" />
+                <button class="smallBtn" id="notesPinBtn" type="button">Pin this day</button>
+              </div>
+              <textarea class="textarea" id="notesArea" rows="10" placeholder="Write freely…"></textarea>
+              <div class="notesMeta">
+                <div class="muted" id="notesPrompt">Prompt</div>
+                <div class="muted" id="notesSavedAt">Last saved: —</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" data-focus-hide="true">
+            <div class="card__head">
+              <div class="card__title">Reflection</div>
+              <div class="card__meta">Intention • Lesson • Gratitude</div>
+            </div>
+            <div class="card__body">
+              <div class="field">
+                <label class="field__label" for="intentionInput">Daily intention</label>
+                <input class="field__input" id="intentionInput" type="text" placeholder="How do you want to show up?" />
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label class="field__label" for="lessonInput">Lesson learned</label>
+                <textarea class="textarea" id="lessonInput" rows="3" placeholder="What did today teach you?"></textarea>
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label class="field__label" for="gratitude1">Gratitude list</label>
+                <div class="gratitudeGrid">
+                  <input class="field__input" id="gratitude1" type="text" placeholder="Grateful for..." />
+                  <input class="field__input" id="gratitude2" type="text" placeholder="Grateful for..." />
+                  <input class="field__input" id="gratitude3" type="text" placeholder="Grateful for..." />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel--right" id="progressPanel">
+        <div class="panel__header">
+          <div class="panel__title">Progress</div>
+          <div class="segmented" role="tablist" aria-label="Progress range">
+            <button class="segmented__btn is-active" id="rangeWeek" type="button" role="tab" aria-selected="true">Week</button>
+            <button class="segmented__btn" id="rangeMonth" type="button" role="tab" aria-selected="false">Month</button>
+            <button class="segmented__btn" id="rangeYear" type="button" role="tab" aria-selected="false">Year</button>
+          </div>
+        </div>
+        <div class="panel__subhead">
+          <div class="segmented segmented--tabs" role="tablist" aria-label="Progress sections">
+            <button class="segmented__btn is-active" id="sectionSummary" type="button" role="tab" aria-selected="true">Summary</button>
+            <button class="segmented__btn" id="sectionInsights" type="button" role="tab" aria-selected="false">Insights</button>
+            <button class="segmented__btn" id="sectionManage" type="button" role="tab" aria-selected="false">Manage</button>
+          </div>
+        </div>
+
+        <div class="panel__body">
+          <div class="panelTab is-active" data-tab="summary">
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Summary</div>
+                <div class="card__meta" id="summaryRangeLabel">This week</div>
+              </div>
+              <div class="card__body">
+                <div class="kpis">
+                  <div class="kpi">
+                    <div class="kpi__label">Completion</div>
+                    <div class="kpi__value" id="kpiCompletion">0%</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Score</div>
+                    <div class="kpi__value" id="kpiScore">0%</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Study hours</div>
+                    <div class="kpi__value" id="kpiStudy">0</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Deep work ratio</div>
+                    <div class="kpi__value" id="kpiDeepWork">0%</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Earnings</div>
+                    <div class="kpi__value" id="kpiEarnings">0</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Completed days</div>
+                    <div class="kpi__value" id="kpiDays">0</div>
+                  </div>
+                </div>
+
+                <div class="bar" aria-label="Completion bar">
+                  <div class="bar__fill" id="completionBar" style="width:0%"></div>
+                </div>
+                <div class="muted" id="summaryHint">Mark tasks to build your streak.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Level & XP</div>
+                <div class="card__meta" id="levelRangeMeta">This week</div>
+              </div>
+              <div class="card__body">
+                <div class="kpis">
+                  <div class="kpi">
+                    <div class="kpi__label">Level</div>
+                    <div class="kpi__value" id="levelCardValue">1</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Total XP</div>
+                    <div class="kpi__value" id="levelTotalXp">0</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">XP in range</div>
+                    <div class="kpi__value" id="levelRangeXp">0</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Next level</div>
+                    <div class="kpi__value" id="levelNextXp">120</div>
+                    <div class="kpi__meta" id="levelNextMeta">Need 120 XP</div>
+                  </div>
+                </div>
+                <div class="bar" aria-label="Level progress">
+                  <div class="bar__fill" id="levelProgressBar" style="width:0%"></div>
+                </div>
+                <div class="muted" id="levelProgressMeta">0 / 120 XP</div>
+                <div class="list" id="levelSourcesList" aria-label="XP sources"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">75-Day Roadmap</div>
+                <div class="card__meta">Goal: 1000 EUR in 75 days</div>
+              </div>
+              <div class="card__body">
+                <div class="kpis">
+                  <div class="kpi">
+                    <div class="kpi__label">Daily target</div>
+                    <div class="kpi__value">15 EUR</div>
+                    <div class="kpi__meta">Build a buffer</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Weekly target</div>
+                    <div class="kpi__value">105 EUR</div>
+                    <div class="kpi__meta">Track every Sunday</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Work blocks</div>
+                    <div class="kpi__value">3 blocks</div>
+                    <div class="kpi__meta">2-3h each</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Minimums</div>
+                    <div class="kpi__value">Sleep + Move</div>
+                    <div class="kpi__meta">Protect energy</div>
+                  </div>
+                </div>
+
+                <div class="roadmapCallout">
+                  <div class="roadmapCallout__title">Late-day reset (if you missed today)</div>
+                  <div class="roadmapList">
+                    <div class="roadmapItem">Write tomorrow's MIT and two focus blocks.</div>
+                    <div class="roadmapItem">Prep your workspace and close distractions.</div>
+                    <div class="roadmapItem">Sleep on time to protect Day 1.</div>
+                  </div>
+                </div>
+
+                <div class="roadmapGrid">
+                  <div class="roadmapPhase">
+                    <div class="roadmapPhase__title">Days 1-7</div>
+                    <div class="roadmapPhase__meta">Reset and setup</div>
+                    <div class="roadmapList">
+                      <div class="roadmapItem">Lock sleep/wake rhythm and morning routine.</div>
+                      <div class="roadmapItem">Apply to 10 online platforms.</div>
+                      <div class="roadmapItem">Pick one skill to build (Canva, CapCut, or copy).</div>
+                    </div>
+                  </div>
+                  <div class="roadmapPhase">
+                    <div class="roadmapPhase__title">Days 8-21</div>
+                    <div class="roadmapPhase__meta">Skill foundation</div>
+                    <div class="roadmapList">
+                      <div class="roadmapItem">Study 2-3h daily and build 5 samples.</div>
+                      <div class="roadmapItem">Keep microtasks for daily income.</div>
+                      <div class="roadmapItem">Track earnings in the Daily scorecard.</div>
+                    </div>
+                  </div>
+                  <div class="roadmapPhase">
+                    <div class="roadmapPhase__title">Days 22-45</div>
+                    <div class="roadmapPhase__meta">Output and proof</div>
+                    <div class="roadmapList">
+                      <div class="roadmapItem">Deliver 1 real project per week.</div>
+                      <div class="roadmapItem">Post samples and apply to paid gigs.</div>
+                      <div class="roadmapItem">Review root causes if you slip.</div>
+                    </div>
+                  </div>
+                  <div class="roadmapPhase">
+                    <div class="roadmapPhase__title">Days 46-75</div>
+                    <div class="roadmapPhase__meta">Earn and scale</div>
+                    <div class="roadmapList">
+                      <div class="roadmapItem">Push daily outreach and repeat what pays.</div>
+                      <div class="roadmapItem">Raise prices as quality improves.</div>
+                      <div class="roadmapItem">Protect health and sleep to stay consistent.</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="roadmapPhase roadmapPhase--full" style="margin-top:12px">
+                  <div class="roadmapPhase__title">Every day</div>
+                  <div class="roadmapPhase__meta">Non-negotiables</div>
+                  <div class="roadmapList">
+                    <div class="roadmapItem">Sleep 7.5-8h.</div>
+                    <div class="roadmapItem">Move 30-45 min (walk or gym).</div>
+                    <div class="roadmapItem">Study/work 4-6h minimum.</div>
+                    <div class="roadmapItem">Eat 2 solid meals + water.</div>
+                    <div class="roadmapItem">One social action (text, call, or IRL).</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Project Showcase</div>
+                <div class="card__meta" id="projectShowcaseMeta">0 completed milestones</div>
+              </div>
+              <div class="card__body">
+                <div class="list" id="projectShowcaseList" aria-label="Completed project milestones"></div>
+                <div class="muted">Completed milestones become proof of progress. Use them in your portfolio and community posts.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Perfect Days</div>
+                <div class="card__meta" id="perfectMonthLabel">This month</div>
+              </div>
+              <div class="card__body">
+                <div class="perfectSection">
+                  <div class="perfectLabel">Week snapshot</div>
+                  <div class="perfectRow" id="perfectWeek"></div>
+                </div>
+                <div class="perfectSection" style="margin-top:12px">
+                  <div class="perfectLabel">Month map</div>
+                  <div class="perfectGrid" id="perfectMonth"></div>
+                </div>
+                <div class="muted">Green dots = 100% day, hollow = no tasks logged.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">All-time</div>
+                <div class="card__meta">Lifetime stats</div>
+              </div>
+              <div class="card__body">
+                <div class="kpis">
+                  <div class="kpi">
+                    <div class="kpi__label">Best streak</div>
+                    <div class="kpi__value" id="kpiBestStreak">0</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Perfect days</div>
+                    <div class="kpi__value" id="kpiPerfectDays">0</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Total study hours</div>
+                    <div class="kpi__value" id="kpiAllStudy">0</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Total earnings</div>
+                    <div class="kpi__value" id="kpiAllEarnings">0</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Total points</div>
+                    <div class="kpi__value" id="kpiAllPoints">0</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Total XP</div>
+                    <div class="kpi__value" id="kpiAllXp">0</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="kpi__label">Level</div>
+                    <div class="kpi__value" id="kpiAllLevel">1</div>
+                  </div>
+                </div>
+                <div class="muted">Counts only days you’ve entered.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Weekly Review</div>
+                <div class="card__meta" id="weeklyReviewLabel">This week</div>
+              </div>
+              <div class="card__body">
+                <div class="reviewGrid">
+                  <div class="reviewBlock">
+                    <div class="reviewTitle">Wins</div>
+                    <div class="reviewList" id="weeklyWins"></div>
+                  </div>
+                  <div class="reviewBlock">
+                    <div class="reviewTitle">Needs attention</div>
+                    <div class="reviewList" id="weeklyMisses"></div>
+                  </div>
+                  <div class="reviewBlock">
+                    <div class="reviewTitle">Next week focus</div>
+                    <div class="reviewList" id="weeklyFocus"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Personal Leaderboard</div>
+                <div class="card__meta" id="leaderboardRange">This week vs last</div>
+              </div>
+              <div class="card__body">
+                <div class="leaderboard" id="leaderboardList" aria-label="Personal leaderboard"></div>
+                <div class="muted">Shows changes compared to the previous period.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Community Leaderboard</div>
+                <div class="card__meta" id="communityLeaderboardMeta">All-time XP</div>
+              </div>
+              <div class="card__body">
+                <div class="leaderboard" id="communityLeaderboardList" aria-label="Community leaderboard"></div>
+                <div class="muted">Add friends in Manage → Profile & Community. Supabase can power global rankings later.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Achievements & Streak Freeze</div>
+                <div class="card__meta">Progress rewards</div>
+              </div>
+              <div class="card__body">
+                <div class="freezeRow">
+                  <div>
+                    <div class="freezeLabel">Freeze tokens</div>
+                    <div class="freezeValue"><span id="freezeTokens">0</span> available</div>
+                  </div>
+                  <button class="btn" id="useFreezeBtn" type="button">Use for yesterday</button>
+                </div>
+                <div class="list" id="achievementsList"></div>
+                <div class="muted">Freezes only apply when a day is missed.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Recent Days</div>
+                <div class="card__meta">Jump quickly</div>
+              </div>
+              <div class="card__body">
+                <div class="history" id="historyStrip" aria-label="Recent days history"></div>
+                <div class="muted">Tip: click a day to edit it.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Calendar</div>
+                <div class="card__meta" id="calendarLabel">Month view</div>
+              </div>
+              <div class="card__body">
+                <div class="calendarTop">
+                  <button class="smallBtn" id="calPrev" type="button">Prev</button>
+                  <div class="calendarTitle" id="calTitle">—</div>
+                  <button class="smallBtn" id="calNext" type="button">Next</button>
+                </div>
+                <div class="calendarGrid" id="calendarGrid" aria-label="Calendar"></div>
+                <div class="muted">Dots show objective deadlines. Shade shows completion.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panelTab" data-tab="insights">
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Auto Insights</div>
+                <div class="card__meta">From your recent data</div>
+              </div>
+              <div class="card__body">
+                <div class="insightsList" id="autoInsightsList" aria-label="Auto insights"></div>
+                <div class="muted">Insights appear once enough data is logged.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head chartHero__head">
+                <div>
+                  <div class="card__title">Trend Overview</div>
+                  <div class="card__meta" id="trendMeta">Last 30 days</div>
+                </div>
+                <div class="chartControls">
+                  <div class="filterRow" id="trendMetricFilters" aria-label="Trend metrics"></div>
+                  <select class="field__input chartSelect" id="trendRangeSelect" aria-label="Trend range">
+                    <option value="7">Last 7 days</option>
+                    <option value="30" selected>Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                  </select>
+                </div>
+              </div>
+              <div class="card__body">
+                <div class="chartHero">
+                  <canvas id="chartTrend" height="260" aria-label="Trend chart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Task Stats</div>
+                <div class="card__meta">Completion rate (selected range)</div>
+              </div>
+              <div class="card__body">
+                <div class="stats" id="taskStats" aria-label="Task statistics"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Charts</div>
+                <div class="card__meta">Selected range</div>
+              </div>
+              <div class="card__body">
+                <div class="chartGrid">
+                  <div class="chartCard">
+                    <div class="chartTitle">Completion %</div>
+                    <canvas id="chartCompletion" height="140" aria-label="Completion chart"></canvas>
+                  </div>
+                  <div class="chartCard">
+                    <div class="chartTitle">Study hours & Earnings</div>
+                    <canvas id="chartWorkMoney" height="140" aria-label="Work and earnings chart"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Financial Trend</div>
+                <div class="card__meta">Daily + cumulative earnings</div>
+              </div>
+              <div class="card__body">
+                <div class="chartCard">
+                  <div class="chartTitle">Earnings</div>
+                  <canvas id="chartFinance" height="180" aria-label="Financial trend chart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Check-in Correlation</div>
+                <div class="card__meta">Completion & Study</div>
+              </div>
+              <div class="card__body">
+                <div class="chartGrid">
+                  <div class="chartCard">
+                    <div class="chartTitle">Mood/Energy/Sleep vs Completion</div>
+                    <canvas id="chartCorrelationCompletion" height="140" aria-label="Correlation completion chart"></canvas>
+                  </div>
+                  <div class="chartCard">
+                    <div class="chartTitle">Mood/Energy/Sleep vs Study</div>
+                    <canvas id="chartCorrelationStudy" height="140" aria-label="Correlation study chart"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Notes Vault</div>
+                <div class="card__meta">Search, tags, pinned days</div>
+              </div>
+              <div class="card__body">
+                <div class="row">
+                  <input class="field__input" id="notesSearchInput" type="text" placeholder="Search notes, wins, lessons..." />
+                </div>
+                <div class="filterRow" id="notesTagFilters" aria-label="Notes tag filters"></div>
+                <div class="vaultSection">
+                  <div class="vaultLabel">Pinned</div>
+                  <div class="list" id="notesPinnedList"></div>
+                </div>
+                <div class="vaultSection">
+                  <div class="vaultLabel">Results</div>
+                  <div class="list" id="notesResults"></div>
+                </div>
+                <div class="muted">Click a day to jump to it.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panelTab" data-tab="manage">
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Profile & Community</div>
+                <div class="card__meta">Identity, XP, and friends</div>
+              </div>
+              <div class="card__body">
+                <div class="grid2">
+                  <div class="field">
+                    <label class="field__label" for="profileNameInput">Your username</label>
+                    <input class="field__input" id="profileNameInput" type="text" placeholder="e.g. Tiger" />
+                    <div class="hint" id="profileLevelHint">Level 1 • 0 XP</div>
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="friendNameInput">Add a friend (manual for now)</label>
+                    <div class="row">
+                      <input class="field__input" id="friendNameInput" type="text" placeholder="Friend name" />
+                      <input class="field__input" id="friendXpInput" type="number" min="0" step="10" placeholder="XP" />
+                      <button class="btn" id="addFriendBtn" type="button">Add</button>
+                    </div>
+                    <div class="hint" id="profileXpHint">XP updates automatically from your logs.</div>
+                  </div>
+                </div>
+                <div class="list" id="friendsList" aria-label="Friends leaderboard entries"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Goal Targets</div>
+                <div class="card__meta">Daily targets</div>
+              </div>
+              <div class="card__body">
+                <div class="grid3">
+                  <div class="field">
+                    <label class="field__label" for="goalStudyInput">Study hours / day</label>
+                    <input class="field__input" id="goalStudyInput" type="number" inputmode="decimal" min="0" step="0.25" placeholder="e.g. 6" />
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="goalEarningsInput">Earnings / day</label>
+                    <input class="field__input" id="goalEarningsInput" type="number" inputmode="decimal" min="0" step="0.01" placeholder="e.g. 50" />
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="goalSleepInput">Sleep target (hours)</label>
+                    <input class="field__input" id="goalSleepInput" type="number" inputmode="decimal" min="0" step="0.25" placeholder="e.g. 8" />
+                  </div>
+                </div>
+                <div class="muted">Used in the daily scorecard, sleep score, and study/earnings hints.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Mantra</div>
+                <div class="card__meta">Daily anchor</div>
+              </div>
+              <div class="card__body">
+                <div class="field">
+                  <label class="field__label" for="mantraInput">Mantra / quote</label>
+                  <input class="field__input" id="mantraInput" type="text" placeholder="Short line to repeat daily" />
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Vision</div>
+                <div class="card__meta">1-year & 5-year</div>
+              </div>
+              <div class="card__body">
+                <div class="field">
+                  <label class="field__label" for="vision1Input">1-year vision</label>
+                  <textarea class="textarea" id="vision1Input" rows="3" placeholder="Where do you want to be in a year?"></textarea>
+                </div>
+                <div class="field" style="margin-top:10px">
+                  <label class="field__label" for="vision5Input">5-year vision</label>
+                  <textarea class="textarea" id="vision5Input" rows="3" placeholder="Bigger picture..."></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Quarterly Goals</div>
+                <div class="card__meta">Top 4 this quarter</div>
+              </div>
+              <div class="card__body">
+                <div class="field">
+                  <label class="field__label" for="quarterYearInput">Quarter label</label>
+                  <input class="field__input" id="quarterYearInput" type="text" placeholder="e.g. Q3 2024" />
+                </div>
+                <div class="grid2" style="margin-top:10px">
+                  <div class="field">
+                    <label class="field__label" for="quarterQ1">Goal 1</label>
+                    <input class="field__input" id="quarterQ1" type="text" placeholder="Primary target" />
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="quarterQ2">Goal 2</label>
+                    <input class="field__input" id="quarterQ2" type="text" placeholder="Secondary target" />
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="quarterQ3">Goal 3</label>
+                    <input class="field__input" id="quarterQ3" type="text" placeholder="Stretch goal" />
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="quarterQ4">Goal 4</label>
+                    <input class="field__input" id="quarterQ4" type="text" placeholder="Bonus goal" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Daily Habits</div>
+                <div class="card__meta">Edit your checklist</div>
+              </div>
+              <div class="card__body">
+                <div class="row">
+                  <input class="field__input" id="taskTitleInput" type="text" placeholder="Habit title…" />
+                  <input class="field__input" id="taskDescInput" type="text" placeholder="Short description…" />
+                  <input class="field__input" id="taskCategoryInput" type="text" placeholder="Category (e.g. Health)" />
+                  <input class="field__input" id="taskWeightInput" type="number" min="1" max="10" step="1" placeholder="Points" />
+                  <button class="btn" id="addTaskBtn" type="button">Add</button>
+                </div>
+                <div class="list" id="taskManagerList" aria-label="Manage tasks"></div>
+                <div class="muted">Changing habits affects all dates (new habits start unchecked).</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Anti-habits</div>
+                <div class="card__meta">Habits to avoid</div>
+              </div>
+              <div class="card__body">
+                <div class="row">
+                  <input class="field__input" id="antiHabitTitleInput" type="text" placeholder="Anti-habit title…" />
+                  <input class="field__input" id="antiHabitDescInput" type="text" placeholder="Why it matters…" />
+                  <button class="btn" id="addAntiHabitBtn" type="button">Add</button>
+                </div>
+                <div class="list" id="antiHabitManagerList" aria-label="Manage anti habits"></div>
+                <div class="muted">These show up in the daily anti-habit tracker.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Social Ladder</div>
+                <div class="card__meta">Exposure steps</div>
+              </div>
+              <div class="card__body">
+                <div class="row">
+                  <input class="field__input" id="socialStepInput" type="text" placeholder="Step (e.g. say hi to cashier)" />
+                  <input class="field__input" id="socialStepDifficulty" type="number" min="1" max="5" step="1" placeholder="Difficulty 1-5" />
+                  <button class="btn" id="addSocialStepBtn" type="button">Add</button>
+                </div>
+                <div class="list" id="socialStepList" aria-label="Social ladder steps"></div>
+                <div class="muted">Active steps feed the daily challenge picker.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Projects & Milestones</div>
+                <div class="card__meta">Break big goals down</div>
+              </div>
+              <div class="card__body">
+                <div class="row">
+                  <input class="field__input" id="projectInput" type="text" placeholder="Project name…" />
+                  <input class="field__input" id="projectMilestoneInput" type="text" placeholder="Next milestone…" />
+                  <input class="field__input" id="projectDeadlineInput" type="date" aria-label="Milestone due date" />
+                  <button class="btn" id="addProjectBtn" type="button">Add</button>
+                </div>
+                <div class="list" id="projectList" aria-label="Projects and milestones"></div>
+                <div class="muted">Reuse the project name to add more milestones.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Reminders</div>
+                <div class="card__meta">Browser notifications (while open)</div>
+              </div>
+              <div class="card__body">
+                <div class="row">
+                  <input class="field__input" id="reminderTime" type="time" />
+                  <input class="field__input" id="reminderTask" type="text" list="taskOptions" placeholder="Habit (optional)" />
+                  <input class="field__input" id="reminderLabel" type="text" placeholder="Reminder label" />
+                  <button class="btn" id="addReminderBtn" type="button">Add</button>
+                </div>
+                <datalist id="taskOptions"></datalist>
+                <div class="row" id="reminderDays" aria-label="Reminder days">
+                  <button class="chipBtn is-active" type="button" data-day="1">Mon</button>
+                  <button class="chipBtn is-active" type="button" data-day="2">Tue</button>
+                  <button class="chipBtn is-active" type="button" data-day="3">Wed</button>
+                  <button class="chipBtn is-active" type="button" data-day="4">Thu</button>
+                  <button class="chipBtn is-active" type="button" data-day="5">Fri</button>
+                  <button class="chipBtn is-active" type="button" data-day="6">Sat</button>
+                  <button class="chipBtn is-active" type="button" data-day="0">Sun</button>
+                </div>
+                <div class="row">
+                  <button class="btn btn--ghost" id="enableNotificationsBtn" type="button">Enable notifications</button>
+                  <div class="muted" id="notificationsStatus">Notifications not enabled</div>
+                </div>
+                <div class="list" id="remindersList"></div>
+                <div class="muted">Reminders only fire while this tab is open.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Objectives</div>
+                <div class="card__meta">Your focus list</div>
+              </div>
+              <div class="card__body">
+                <div class="row">
+                  <input class="field__input" id="objectiveInput" type="text" placeholder="Add an objective…" />
+                  <input class="field__input" id="objectiveDeadline" type="date" aria-label="Objective deadline" />
+                  <button class="btn" id="addObjectiveBtn" type="button">Add</button>
+                </div>
+                <div class="list" id="objectiveList" aria-label="Objectives"></div>
+              </div>
+            </div>
+
+            <div class="card card--collapsible is-collapsed" id="skillsCard" data-collapsible="skills">
+              <div class="card__head">
+                <div class="card__title">Skills & Knowledge</div>
+                <div class="card__headRight">
+                  <div class="card__meta">Progress tracking</div>
+                  <button class="collapseBtn" type="button" aria-expanded="false" aria-label="Toggle Skills & Knowledge">▾</button>
+                </div>
+              </div>
+              <div class="card__body">
+                <div class="row">
+                  <input class="field__input" id="skillNameInput" type="text" placeholder="Skill (e.g. Java, Fitness, Sales)…" />
+                  <input class="field__input" id="skillPctInput" type="number" min="0" max="100" step="1" placeholder="%" />
+                  <button class="btn" id="addSkillBtn" type="button">Add</button>
+                </div>
+                <div class="list" id="skillList" aria-label="Skills"></div>
+              </div>
+            </div>
+
+            <div class="card card--collapsible is-collapsed" id="syncCard" data-collapsible="sync">
+              <div class="card__head">
+                <div class="card__title">Sync</div>
+                <div class="card__headRight">
+                  <div class="card__meta">Phone + laptop (optional)</div>
+                  <button class="collapseBtn" type="button" aria-expanded="false" aria-label="Toggle Sync">▾</button>
+                </div>
+              </div>
+              <div class="card__body">
+                <div class="muted">To enable sync you’ll need a Firebase project. Paste config and choose a key.</div>
+                <div class="field" style="margin-top:12px">
+                  <label class="field__label" for="syncKey">Sync key (same on all devices)</label>
+                  <input class="field__input" id="syncKey" type="text" placeholder="e.g. tiger-main" />
+                </div>
+                <div class="field" style="margin-top:12px">
+                  <label class="field__label" for="firebaseConfig">Firebase config JSON</label>
+                  <textarea class="textarea" id="firebaseConfig" rows="7" placeholder='{
+  "apiKey": "…",
+  "authDomain": "…",
+  "projectId": "…"
+}'></textarea>
+                </div>
+                <div class="row" style="margin-top:12px">
+                  <button class="btn" id="enableSyncBtn" type="button">Enable</button>
+                  <button class="btn btn--ghost" id="syncNowBtn" type="button">Sync now</button>
+                  <div class="muted" id="syncStatus" style="margin-top:0">Sync is off</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="muted">Local-only app (data stored in your browser).</div>
+      <div class="muted">Tip: Export regularly if you care about backup.</div>
+    </footer>
+  </div>
+
+  <input id="datePicker" class="srOnly" type="date" aria-hidden="true" />
+  <input id="importFile" class="srOnly" type="file" accept="application/json" aria-hidden="true" />
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
