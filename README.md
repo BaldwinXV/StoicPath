@@ -44,6 +44,9 @@ Voltaris is a built-in habit architect:
 - It runs a guided flow (name -> category -> frequency -> difficulty -> duration -> time block)
 - It assigns points automatically based on difficulty and duration
 - It queues habits first so you can review them before adding
+- Daily check-in captures focus, obstacles, mood, and energy
+- Action plan generator turns any situation into 3-7 steps
+- Long-term memory stores context so the AI remembers your priorities
 
 Use it in **Manage -> Voltaris AI**.
 

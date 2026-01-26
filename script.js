@@ -528,6 +528,24 @@ const el = {
   voltarisStatus: $("voltarisStatus"),
   voltarisAiToggle: $("voltarisAiToggle"),
   voltarisContextToggle: $("voltarisContextToggle"),
+  voltarisCheckinFocus: $("voltarisCheckinFocus"),
+  voltarisCheckinObstacle: $("voltarisCheckinObstacle"),
+  voltarisCheckinWin: $("voltarisCheckinWin"),
+  voltarisCheckinNotes: $("voltarisCheckinNotes"),
+  voltarisCheckinMood: $("voltarisCheckinMood"),
+  voltarisCheckinEnergy: $("voltarisCheckinEnergy"),
+  voltarisCheckinMoodLabel: $("voltarisCheckinMoodLabel"),
+  voltarisCheckinEnergyLabel: $("voltarisCheckinEnergyLabel"),
+  voltarisCheckinSaveBtn: $("voltarisCheckinSaveBtn"),
+  voltarisCheckinClearBtn: $("voltarisCheckinClearBtn"),
+  voltarisCheckinMeta: $("voltarisCheckinMeta"),
+  voltarisPlanInput: $("voltarisPlanInput"),
+  voltarisPlanBtn: $("voltarisPlanBtn"),
+  voltarisPlanList: $("voltarisPlanList"),
+  voltarisPlanMeta: $("voltarisPlanMeta"),
+  voltarisMemoryInput: $("voltarisMemoryInput"),
+  voltarisMemoryAddBtn: $("voltarisMemoryAddBtn"),
+  voltarisMemoryList: $("voltarisMemoryList"),
 
   goalStudyInput: $("goalStudyInput"),
   goalEarningsInput: $("goalEarningsInput"),
@@ -897,6 +915,8 @@ function normalizeFriends(entries) {
 
 const VOLTARIS_MAX_MESSAGES = 80;
 const VOLTARIS_MAX_PENDING = 12;
+const VOLTARIS_MAX_MEMORY = 40;
+const VOLTARIS_MAX_PLANS = 12;
 const VOLTARIS_STEPS = [
   "idle",
   "ask_title",
@@ -978,6 +998,73 @@ function normalizeVoltarisPendingTasks(list) {
     .slice(0, VOLTARIS_MAX_PENDING);
 }
 
+function normalizeVoltarisMemoryItem(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const text = typeof entry.text === "string" ? entry.text.trim() : "";
+  if (!text) return null;
+  return {
+    id: typeof entry.id === "string" && entry.id ? entry.id : crypto.randomUUID(),
+    text,
+    createdAt: safeNumber(entry.createdAt ?? Date.now()),
+  };
+}
+
+function normalizeVoltarisMemory(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((entry) => normalizeVoltarisMemoryItem(entry))
+    .filter(Boolean)
+    .slice(0, VOLTARIS_MAX_MEMORY);
+}
+
+function normalizeVoltarisCheckin(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  return {
+    focus: typeof entry.focus === "string" ? entry.focus : "",
+    obstacle: typeof entry.obstacle === "string" ? entry.obstacle : "",
+    win: typeof entry.win === "string" ? entry.win : "",
+    notes: typeof entry.notes === "string" ? entry.notes : "",
+    mood: clamp(Math.round(safeNumber(entry.mood ?? 0)), 0, 5),
+    energy: clamp(Math.round(safeNumber(entry.energy ?? 0)), 0, 5),
+    createdAt: safeNumber(entry.createdAt ?? Date.now()),
+  };
+}
+
+function normalizeVoltarisCheckins(map) {
+  if (!map || typeof map !== "object") return {};
+  const normalized = {};
+  for (const [iso, entry] of Object.entries(map)) {
+    if (!isIsoDate(iso)) continue;
+    const checkin = normalizeVoltarisCheckin(entry);
+    if (checkin) normalized[iso] = checkin;
+  }
+  return normalized;
+}
+
+function normalizeVoltarisPlan(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const title = typeof entry.title === "string" ? entry.title.trim() : "";
+  const steps = Array.isArray(entry.steps)
+    ? entry.steps.map((step) => String(step).trim()).filter(Boolean)
+    : [];
+  if (!title && steps.length === 0) return null;
+  return {
+    id: typeof entry.id === "string" && entry.id ? entry.id : crypto.randomUUID(),
+    title: title || "Action plan",
+    steps,
+    source: typeof entry.source === "string" ? entry.source : "",
+    createdAt: safeNumber(entry.createdAt ?? Date.now()),
+  };
+}
+
+function normalizeVoltarisPlans(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((entry) => normalizeVoltarisPlan(entry))
+    .filter(Boolean)
+    .slice(0, VOLTARIS_MAX_PLANS);
+}
+
 function normalizeVoltarisFlow(flow) {
   const step = VOLTARIS_STEPS.includes(flow?.step) ? flow.step : "idle";
   const draftRaw = flow && typeof flow === "object" ? flow.draft : null;
@@ -1010,6 +1097,9 @@ function defaultVoltarisState() {
       },
     ],
     pendingTasks: [],
+    memory: [],
+    checkins: {},
+    plans: [],
     flow: normalizeVoltarisFlow({ step: "idle", draft: createVoltarisDraft(), mode: "" }),
     lastUpdatedAt: Date.now(),
   };
@@ -1019,10 +1109,16 @@ function normalizeVoltarisState(raw) {
   if (!raw || typeof raw !== "object") return defaultVoltarisState();
   const messages = normalizeVoltarisMessages(raw.messages);
   const pendingTasks = normalizeVoltarisPendingTasks(raw.pendingTasks);
+  const memory = normalizeVoltarisMemory(raw.memory);
+  const checkins = normalizeVoltarisCheckins(raw.checkins);
+  const plans = normalizeVoltarisPlans(raw.plans);
   const flow = normalizeVoltarisFlow(raw.flow);
   const normalized = {
     messages: messages.length ? messages : defaultVoltarisState().messages,
     pendingTasks,
+    memory,
+    checkins,
+    plans,
     flow,
     lastUpdatedAt: safeNumber(raw.lastUpdatedAt ?? Date.now()),
   };
@@ -5816,6 +5912,7 @@ function voltarisHandleIdleInput(text) {
 function buildVoltarisContext() {
   const iso = toISODate(activeDate);
   const rec = getDayRecord(iso);
+  const voltaris = getVoltarisState();
   const dueTasks = getDueTasksForDate(activeDate);
   const completion = computeCompletionForTasks(rec, dueTasks).pct;
   const score = computeScoreForTasks(rec, dueTasks).pct;
@@ -5827,6 +5924,10 @@ function buildVoltarisContext() {
   const streak = computeStreakFrom(activeDate);
   const mit = rec.mit?.text?.trim() || "Not set";
   const intention = rec.intention?.trim() || "Not set";
+
+  const memory = voltaris.memory.slice(0, 10).map((item) => `- ${item.text}`).join("\n");
+  const todayCheckin = voltaris.checkins?.[iso] ?? null;
+  const lastPlan = voltaris.plans?.[0];
 
   const tasks = (state.tasks ?? [])
     .slice(0, 18)
@@ -5845,6 +5946,11 @@ function buildVoltarisContext() {
     `Streak: ${streak} days`,
     `MIT: ${mit}`,
     `Intention: ${intention}`,
+    todayCheckin
+      ? `Check-in: focus "${todayCheckin.focus}", obstacle "${todayCheckin.obstacle}", win "${todayCheckin.win}", mood ${todayCheckin.mood}/5, energy ${todayCheckin.energy}/5`
+      : "Check-in: not provided yet",
+    memory ? `Memory:\\n${memory}` : "Memory: none",
+    lastPlan ? `Last plan: ${lastPlan.title} (${lastPlan.steps.length} steps)` : "Last plan: none",
     `Top habits:\\n${tasks}`,
   ].join("\\n");
 }
@@ -6011,6 +6117,283 @@ function renderVoltarisPending(voltaris) {
   }
 }
 
+function getVoltarisCheckin(iso) {
+  const voltaris = getVoltarisState();
+  const checkins = voltaris.checkins ?? {};
+  return checkins[iso] ?? null;
+}
+
+function saveVoltarisCheckin(iso, data) {
+  const voltaris = getVoltarisState();
+  voltaris.checkins = normalizeVoltarisCheckins({
+    ...(voltaris.checkins ?? {}),
+    [iso]: normalizeVoltarisCheckin({ ...data, createdAt: Date.now() }),
+  });
+  voltarisSave();
+}
+
+function clearVoltarisCheckin(iso) {
+  const voltaris = getVoltarisState();
+  if (!voltaris.checkins?.[iso]) return;
+  delete voltaris.checkins[iso];
+  voltarisSave();
+}
+
+function renderVoltarisCheckin(voltaris) {
+  if (!el.voltarisCheckinFocus || !el.voltarisCheckinMeta) return;
+  const iso = toISODate(activeDate);
+  const entry = voltaris.checkins?.[iso] ?? null;
+
+  if (el.voltarisCheckinFocus && document.activeElement !== el.voltarisCheckinFocus) {
+    el.voltarisCheckinFocus.value = entry?.focus ?? "";
+  }
+  if (el.voltarisCheckinObstacle && document.activeElement !== el.voltarisCheckinObstacle) {
+    el.voltarisCheckinObstacle.value = entry?.obstacle ?? "";
+  }
+  if (el.voltarisCheckinWin && document.activeElement !== el.voltarisCheckinWin) {
+    el.voltarisCheckinWin.value = entry?.win ?? "";
+  }
+  if (el.voltarisCheckinNotes && document.activeElement !== el.voltarisCheckinNotes) {
+    el.voltarisCheckinNotes.value = entry?.notes ?? "";
+  }
+  if (el.voltarisCheckinMood && document.activeElement !== el.voltarisCheckinMood) {
+    el.voltarisCheckinMood.value = String(entry?.mood ?? 0);
+  }
+  if (el.voltarisCheckinEnergy && document.activeElement !== el.voltarisCheckinEnergy) {
+    el.voltarisCheckinEnergy.value = String(entry?.energy ?? 0);
+  }
+  if (el.voltarisCheckinMoodLabel) el.voltarisCheckinMoodLabel.textContent = String(entry?.mood ?? 0);
+  if (el.voltarisCheckinEnergyLabel) el.voltarisCheckinEnergyLabel.textContent = String(entry?.energy ?? 0);
+
+  if (el.voltarisCheckinMeta) {
+    el.voltarisCheckinMeta.textContent = entry?.createdAt
+      ? `Saved ${formatShortDate(new Date(entry.createdAt))}`
+      : "Not saved";
+  }
+}
+
+function addVoltarisMemory(text) {
+  const voltaris = getVoltarisState();
+  const memoryItem = normalizeVoltarisMemoryItem({ text });
+  if (!memoryItem) return;
+  voltaris.memory = normalizeVoltarisMemory([memoryItem, ...(voltaris.memory ?? [])]);
+  voltarisSave({ render: true });
+}
+
+function removeVoltarisMemory(id) {
+  const voltaris = getVoltarisState();
+  voltaris.memory = (voltaris.memory ?? []).filter((item) => item.id !== id);
+  voltarisSave({ render: true });
+}
+
+function renderVoltarisMemory(voltaris) {
+  if (!el.voltarisMemoryList) return;
+  el.voltarisMemoryList.innerHTML = "";
+  const memory = voltaris.memory ?? [];
+  if (memory.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "emptyState";
+    empty.textContent = "No memory saved yet.";
+    el.voltarisMemoryList.appendChild(empty);
+    return;
+  }
+
+  for (const item of memory) {
+    const row = document.createElement("div");
+    row.className = "item";
+
+    const top = document.createElement("div");
+    top.className = "item__top";
+
+    const title = document.createElement("div");
+    title.className = "item__title";
+    title.textContent = item.text;
+
+    const actions = document.createElement("div");
+    actions.className = "item__actions";
+    const del = document.createElement("button");
+    del.className = "smallBtn";
+    del.type = "button";
+    del.textContent = "Remove";
+    del.addEventListener("click", () => removeVoltarisMemory(item.id));
+    actions.appendChild(del);
+
+    top.appendChild(title);
+    top.appendChild(actions);
+    row.appendChild(top);
+    el.voltarisMemoryList.appendChild(row);
+  }
+}
+
+function parsePlanStepsFromText(text) {
+  if (!text) return { title: "Action plan", steps: [] };
+  const lines = text.split("\\n").map((line) => line.trim()).filter(Boolean);
+  let title = "";
+  let stepLines = lines;
+
+  if (lines.length && !/^[-*\\d]/.test(lines[0])) {
+    title = lines[0];
+    stepLines = lines.slice(1);
+  }
+
+  const steps = [];
+  for (const line of stepLines) {
+    const cleaned = line.replace(/^[-*\\d.\\)]+\\s*/, "");
+    if (cleaned) steps.push(cleaned);
+  }
+
+  if (steps.length === 0) {
+    const fallback = text
+      .split(/[.!?]/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 6);
+    steps.push(...fallback);
+  }
+
+  return {
+    title: title || "Action plan",
+    steps: steps.slice(0, 7),
+  };
+}
+
+function createLocalActionPlan(prompt) {
+  const base = String(prompt ?? "").trim();
+  const title = base ? `Plan: ${base.slice(0, 60)}` : "Action plan";
+  const steps = [
+    "Define the exact outcome you want in one sentence.",
+    "List the 3 most important actions that move the needle.",
+    "Choose the easiest first step and do it within 24 hours.",
+    "Block time on your calendar for the next two steps.",
+    "Review progress nightly and adjust tomorrow’s focus.",
+  ];
+  return { title, steps };
+}
+
+function addVoltarisPlan(plan, sourceText = "") {
+  const voltaris = getVoltarisState();
+  const normalized = normalizeVoltarisPlan({
+    title: plan.title,
+    steps: plan.steps,
+    source: sourceText,
+  });
+  if (!normalized) return null;
+  voltaris.plans = normalizeVoltarisPlans([normalized, ...(voltaris.plans ?? [])]);
+  voltarisSave({ render: true });
+  return normalized;
+}
+
+async function generateVoltarisPlan() {
+  const prompt = (el.voltarisPlanInput?.value ?? "").trim();
+  if (!prompt) {
+    voltarisPushMessage("ai", "Add a situation or goal first.");
+    return;
+  }
+
+  if (uiState.voltarisAiEnabled) {
+    await checkVoltarisServer({ force: false });
+    if (voltarisServerStatus.state !== "online") {
+      voltarisPushMessage("ai", "AI is offline. Using a local plan instead.");
+      const plan = createLocalActionPlan(prompt);
+      addVoltarisPlan(plan, prompt);
+      return;
+    }
+
+    const placeholder = voltarisPushMessage("ai", "Generating your plan...", { render: true });
+    try {
+      const reply = await callVoltarisAI(
+        `Create a concise action plan for: ${prompt}. Format: Title on first line, then 3-7 bullet steps.`
+      );
+      const parsed = parsePlanStepsFromText(reply);
+      const plan = addVoltarisPlan(parsed, prompt);
+      const summary = plan ? `Plan ready: ${plan.title}` : "Plan ready.";
+      if (placeholder) {
+        voltarisUpdateMessage(placeholder.id, summary);
+      } else {
+        voltarisPushMessage("ai", summary);
+      }
+    } catch (error) {
+      const msg = error?.message || "Plan generation failed.";
+      if (placeholder) {
+        voltarisUpdateMessage(placeholder.id, msg);
+      } else {
+        voltarisPushMessage("ai", msg);
+      }
+    }
+    return;
+  }
+
+  const plan = createLocalActionPlan(prompt);
+  addVoltarisPlan(plan, prompt);
+  voltarisPushMessage("ai", `Plan ready: ${plan.title}`);
+}
+
+function addPlanStepsToObjectives(planId) {
+  const voltaris = getVoltarisState();
+  const plan = (voltaris.plans ?? []).find((p) => p.id === planId);
+  if (!plan || plan.steps.length === 0) return;
+  const deadline = toISODate(activeDate);
+  for (const step of plan.steps) {
+    state.objectives.unshift({
+      id: crypto.randomUUID(),
+      text: step,
+      done: false,
+      deadline,
+    });
+  }
+  saveState(state);
+  renderObjectives();
+  voltarisPushMessage("ai", `Added ${plan.steps.length} steps to Objectives.`);
+}
+
+function renderVoltarisPlans(voltaris) {
+  if (!el.voltarisPlanList || !el.voltarisPlanMeta) return;
+  const plans = voltaris.plans ?? [];
+  el.voltarisPlanList.innerHTML = "";
+  if (plans.length === 0) {
+    el.voltarisPlanMeta.textContent = "No plans yet";
+    const empty = document.createElement("div");
+    empty.className = "emptyState";
+    empty.textContent = "Generate a plan to see it here.";
+    el.voltarisPlanList.appendChild(empty);
+    return;
+  }
+  el.voltarisPlanMeta.textContent = `${plans.length} saved`;
+
+  for (const plan of plans.slice(0, 5)) {
+    const item = document.createElement("div");
+    item.className = "item";
+
+    const top = document.createElement("div");
+    top.className = "item__top";
+
+    const title = document.createElement("div");
+    title.className = "item__title";
+    title.textContent = plan.title;
+
+    const actions = document.createElement("div");
+    actions.className = "item__actions";
+    const addBtn = document.createElement("button");
+    addBtn.className = "smallBtn";
+    addBtn.type = "button";
+    addBtn.textContent = "Add steps";
+    addBtn.addEventListener("click", () => addPlanStepsToObjectives(plan.id));
+    actions.appendChild(addBtn);
+
+    top.appendChild(title);
+    top.appendChild(actions);
+
+    const steps = document.createElement("div");
+    steps.className = "muted";
+    steps.style.marginTop = "6px";
+    steps.textContent = plan.steps.slice(0, 5).map((s) => `• ${s}`).join(" ");
+
+    item.appendChild(top);
+    item.appendChild(steps);
+    el.voltarisPlanList.appendChild(item);
+  }
+}
+
 function renderVoltaris() {
   const voltaris = getVoltarisState();
   if (el.voltarisApiInput && document.activeElement !== el.voltarisApiInput) {
@@ -6025,6 +6408,9 @@ function renderVoltaris() {
   }
   renderVoltarisMessages(voltaris);
   renderVoltarisPending(voltaris);
+  renderVoltarisCheckin(voltaris);
+  renderVoltarisPlans(voltaris);
+  renderVoltarisMemory(voltaris);
 }
 
 function buildPerfectDot(dateObj) {
@@ -6853,6 +7239,55 @@ function bindEvents() {
   el.voltarisContextToggle?.addEventListener("change", () => {
     uiState.voltarisContextEnabled = Boolean(el.voltarisContextToggle.checked);
     saveUiState(uiState);
+  });
+
+  const updateCheckinLabels = () => {
+    if (el.voltarisCheckinMoodLabel && el.voltarisCheckinMood) {
+      el.voltarisCheckinMoodLabel.textContent = String(el.voltarisCheckinMood.value ?? 0);
+    }
+    if (el.voltarisCheckinEnergyLabel && el.voltarisCheckinEnergy) {
+      el.voltarisCheckinEnergyLabel.textContent = String(el.voltarisCheckinEnergy.value ?? 0);
+    }
+  };
+
+  el.voltarisCheckinMood?.addEventListener("input", updateCheckinLabels);
+  el.voltarisCheckinEnergy?.addEventListener("input", updateCheckinLabels);
+
+  el.voltarisCheckinSaveBtn?.addEventListener("click", () => {
+    const iso = toISODate(activeDate);
+    const data = {
+      focus: el.voltarisCheckinFocus?.value ?? "",
+      obstacle: el.voltarisCheckinObstacle?.value ?? "",
+      win: el.voltarisCheckinWin?.value ?? "",
+      notes: el.voltarisCheckinNotes?.value ?? "",
+      mood: safeNumber(el.voltarisCheckinMood?.value ?? 0),
+      energy: safeNumber(el.voltarisCheckinEnergy?.value ?? 0),
+    };
+    saveVoltarisCheckin(iso, data);
+    renderVoltaris();
+  });
+
+  el.voltarisCheckinClearBtn?.addEventListener("click", () => {
+    const iso = toISODate(activeDate);
+    clearVoltarisCheckin(iso);
+    renderVoltaris();
+  });
+
+  el.voltarisPlanBtn?.addEventListener("click", () => {
+    generateVoltarisPlan();
+  });
+
+  el.voltarisMemoryAddBtn?.addEventListener("click", () => {
+    const text = (el.voltarisMemoryInput?.value ?? "").trim();
+    if (!text) return;
+    addVoltarisMemory(text);
+    if (el.voltarisMemoryInput) el.voltarisMemoryInput.value = "";
+  });
+  el.voltarisMemoryInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      el.voltarisMemoryAddBtn?.click();
+    }
   });
 
   el.goalStudyInput?.addEventListener("input", () => {

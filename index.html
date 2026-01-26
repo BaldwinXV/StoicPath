@@ -1109,6 +1109,82 @@
                   <input class="field__input" id="voltarisInput" type="text" placeholder="Tell Voltaris what you want to build..." />
                   <button class="btn" id="voltarisSendBtn" type="button">Send</button>
                 </div>
+
+                <div class="card" style="margin-top:8px">
+                  <div class="card__head">
+                    <div class="card__title">Daily check-in</div>
+                    <div class="card__meta" id="voltarisCheckinMeta">Not saved</div>
+                  </div>
+                  <div class="card__body">
+                    <div class="grid2">
+                      <div class="field">
+                        <label class="field__label" for="voltarisCheckinFocus">Top focus today</label>
+                        <input class="field__input" id="voltarisCheckinFocus" type="text" placeholder="What matters most?" />
+                      </div>
+                      <div class="field">
+                        <label class="field__label" for="voltarisCheckinObstacle">Biggest obstacle</label>
+                        <input class="field__input" id="voltarisCheckinObstacle" type="text" placeholder="What might block you?" />
+                      </div>
+                      <div class="field">
+                        <label class="field__label" for="voltarisCheckinWin">Win you want</label>
+                        <input class="field__input" id="voltarisCheckinWin" type="text" placeholder="Define a win for today" />
+                      </div>
+                      <div class="field">
+                        <label class="field__label" for="voltarisCheckinNotes">Notes</label>
+                        <input class="field__input" id="voltarisCheckinNotes" type="text" placeholder="Anything else?" />
+                      </div>
+                    </div>
+                    <div class="row" style="margin-top:10px">
+                      <label class="field__label" for="voltarisCheckinMood" style="min-width:80px">Mood</label>
+                      <input class="field__input" id="voltarisCheckinMood" type="range" min="0" max="5" step="1" />
+                      <span class="muted" id="voltarisCheckinMoodLabel">0</span>
+                      <label class="field__label" for="voltarisCheckinEnergy" style="min-width:80px">Energy</label>
+                      <input class="field__input" id="voltarisCheckinEnergy" type="range" min="0" max="5" step="1" />
+                      <span class="muted" id="voltarisCheckinEnergyLabel">0</span>
+                    </div>
+                    <div class="voltarisActions" style="margin-top:10px">
+                      <button class="btn" id="voltarisCheckinSaveBtn" type="button">Save check-in</button>
+                      <button class="smallBtn" id="voltarisCheckinClearBtn" type="button">Clear</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card" style="margin-top:8px">
+                  <div class="card__head">
+                    <div class="card__title">Action plan generator</div>
+                    <div class="card__meta">Turn any situation into steps</div>
+                  </div>
+                  <div class="card__body">
+                    <div class="field">
+                      <label class="field__label" for="voltarisPlanInput">Situation or goal</label>
+                      <textarea class="textarea" id="voltarisPlanInput" rows="3" placeholder="Example: I feel overwhelmed with studying and keep procrastinating."></textarea>
+                    </div>
+                    <div class="voltarisActions" style="margin-top:8px">
+                      <button class="btn" id="voltarisPlanBtn" type="button">Generate plan</button>
+                    </div>
+                    <div class="voltarisPendingHead" style="margin-top:10px">
+                      <div>
+                        <div class="voltarisPendingTitle">Recent plans</div>
+                        <div class="voltarisPendingMeta" id="voltarisPlanMeta">No plans yet</div>
+                      </div>
+                    </div>
+                    <div class="list" id="voltarisPlanList" aria-label="Voltaris action plans"></div>
+                  </div>
+                </div>
+
+                <div class="card" style="margin-top:8px">
+                  <div class="card__head">
+                    <div class="card__title">Long-term memory</div>
+                    <div class="card__meta">Things Voltaris should remember</div>
+                  </div>
+                  <div class="card__body">
+                    <div class="row">
+                      <input class="field__input" id="voltarisMemoryInput" type="text" placeholder="Example: I’m in college and want to build a freelance business." />
+                      <button class="btn" id="voltarisMemoryAddBtn" type="button">Save</button>
+                    </div>
+                    <div class="list" id="voltarisMemoryList" aria-label="Voltaris memory list"></div>
+                  </div>
+                </div>
                 <div class="voltarisPendingHead">
                   <div>
                     <div class="voltarisPendingTitle">Pending habits</div>
