@@ -90,14 +90,14 @@ This app is local-first. If you want multi-device sync, use the built-in Firebas
 
 Repo:
 
-- `https://github.com/Tyler-Durden1999/StoicPath`
+- `https://github.com/BaldwinXV/StoicPath`
 
 Run these commands inside `/home/tiger/Documents/SelfImprovement`:
 
 ```bash
 git add .
 git commit -m "feat: add Voltaris AI assistant and start-date-safe habits"
-git remote add origin https://github.com/Tyler-Durden1999/StoicPath.git
+git remote add origin https://github.com/BaldwinXV/StoicPath.git
 git push -u origin main
 ```
 
@@ -112,7 +112,38 @@ On GitHub:
 
 Your site will be live at:
 
-- `https://tyler-durden1999.github.io/StoicPath/`
+- `https://baldwinxv.github.io/StoicPath/`
+
+## Voltaris AI (Local Server)
+
+Voltaris AI uses a **local server** so your API key never sits in the browser.
+
+1. Open a new terminal:
+
+```bash
+cd /home/tiger/Documents/SelfImprovement/server
+cp .env.example .env
+npm install
+npm start
+```
+
+2. Put your OpenAI key into `server/.env`:
+
+```
+OPENAI_API_KEY=sk-...
+```
+
+3. In the app: **Manage → Voltaris AI**
+
+4. Set the endpoint to:
+
+```
+http://localhost:8787/api/voltaris
+```
+
+5. Toggle **Enable AI replies** and click **Check**.
+
+If the status reads **AI online**, Voltaris can chat like a real coach.
 
 ## Important Note About "Community"
 

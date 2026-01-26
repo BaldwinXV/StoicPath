@@ -523,6 +523,11 @@ const el = {
   voltarisPendingList: $("voltarisPendingList"),
   voltarisPendingMeta: $("voltarisPendingMeta"),
   voltarisAddPendingBtn: $("voltarisAddPendingBtn"),
+  voltarisApiInput: $("voltarisApiInput"),
+  voltarisCheckBtn: $("voltarisCheckBtn"),
+  voltarisStatus: $("voltarisStatus"),
+  voltarisAiToggle: $("voltarisAiToggle"),
+  voltarisContextToggle: $("voltarisContextToggle"),
 
   goalStudyInput: $("goalStudyInput"),
   goalEarningsInput: $("goalEarningsInput"),
@@ -1238,6 +1243,9 @@ if (!("showAllTasks" in uiState)) uiState.showAllTasks = false;
 if (!("trendRange" in uiState)) uiState.trendRange = 30;
 if (!Array.isArray(uiState.trendMetrics)) uiState.trendMetrics = ["completion", "deepwork", "focus"];
 if (!Array.isArray(uiState.reminderDays)) uiState.reminderDays = [1, 2, 3, 4, 5, 6, 0];
+if (!("voltarisAiEnabled" in uiState)) uiState.voltarisAiEnabled = false;
+if (!("voltarisContextEnabled" in uiState)) uiState.voltarisContextEnabled = true;
+if (!("voltarisApiUrl" in uiState)) uiState.voltarisApiUrl = "http://localhost:8787/api/voltaris";
 
 let activeDate = todayLocalDate();
 let activeNotesTab = "wins"; // wins | lessons | tomorrow
@@ -5267,6 +5275,51 @@ function scheduleProgressRefresh(delay = 180) {
   }, delay);
 }
 
+let voltarisServerStatus = {
+  state: "unknown",
+  message: "AI offline",
+  checkedAt: 0,
+  checking: false,
+};
+
+function voltarisHealthUrl(apiUrl) {
+  const url = (apiUrl ?? "").trim();
+  if (!url) return "";
+  if (url.endsWith("/api/voltaris")) return url.replace("/api/voltaris", "/health");
+  if (url.endsWith("/")) return `${url}health`;
+  return `${url}/health`;
+}
+
+async function checkVoltarisServer({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && now - voltarisServerStatus.checkedAt < 20000) return voltarisServerStatus;
+  const apiUrl = uiState.voltarisApiUrl;
+  const healthUrl = voltarisHealthUrl(apiUrl);
+  if (!healthUrl) {
+    voltarisServerStatus = { state: "offline", message: "Missing API URL", checkedAt: now, checking: false };
+    return voltarisServerStatus;
+  }
+
+  voltarisServerStatus = { ...voltarisServerStatus, checking: true };
+  try {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 3000);
+    const response = await fetch(healthUrl, { signal: controller.signal });
+    window.clearTimeout(timeout);
+    if (!response.ok) {
+      voltarisServerStatus = { state: "offline", message: "AI offline", checkedAt: now, checking: false };
+      return voltarisServerStatus;
+    }
+    const data = await response.json();
+    const model = data?.model ? `(${data.model})` : "";
+    voltarisServerStatus = { state: "online", message: `AI online ${model}`.trim(), checkedAt: now, checking: false };
+    return voltarisServerStatus;
+  } catch {
+    voltarisServerStatus = { state: "offline", message: "AI offline", checkedAt: now, checking: false };
+    return voltarisServerStatus;
+  }
+}
+
 function getVoltarisState() {
   state.voltaris = normalizeVoltarisState(state.voltaris);
   return state.voltaris;
@@ -5296,6 +5349,14 @@ function voltarisSetFlow(step, draftUpdates = {}, modeOverride = null) {
   voltaris.flow = normalizeVoltarisFlow({ step, draft, mode: nextMode });
   voltarisSave();
   return voltaris.flow;
+}
+
+function voltarisUpdateMessage(id, text) {
+  const voltaris = getVoltarisState();
+  const target = voltaris.messages.find((msg) => msg.id === id);
+  if (!target) return;
+  target.text = text;
+  voltarisSave({ render: true });
 }
 
 function resetVoltaris() {
@@ -5752,12 +5813,107 @@ function voltarisHandleIdleInput(text) {
   );
 }
 
-function handleVoltarisSend() {
+function buildVoltarisContext() {
+  const iso = toISODate(activeDate);
+  const rec = getDayRecord(iso);
+  const dueTasks = getDueTasksForDate(activeDate);
+  const completion = computeCompletionForTasks(rec, dueTasks).pct;
+  const score = computeScoreForTasks(rec, dueTasks).pct;
+  const focusMinutes = computeFocusMinutesForDay(rec);
+  const sleepTarget = safeNumber(state.goals?.sleepDaily);
+  const sleepScore = computeSleepScore(rec.checkin?.sleep, sleepTarget);
+  const studyHours = safeNumber(rec.studyHours);
+  const earnings = safeNumber(rec.earnings);
+  const streak = computeStreakFrom(activeDate);
+  const mit = rec.mit?.text?.trim() || "Not set";
+  const intention = rec.intention?.trim() || "Not set";
+
+  const tasks = (state.tasks ?? [])
+    .slice(0, 18)
+    .map((task) => {
+      const start = normalizeStartDate(task.startDate);
+      const startLabel = start ? `start ${start}` : "start: none";
+      const schedule = formatScheduleDays(task.scheduleDays);
+      return `- ${task.title} (${normalizeCategory(task.category)}, ${normalizeWeight(task.weight)} pts, ${schedule}, ${formatTimeBlock(task.timeBlock)}, ${startLabel})`;
+    })
+    .join("\\n");
+
+  return [
+    `Date: ${iso}`,
+    `Goals: study ${safeNumber(state.goals?.studyDaily)}h, earnings ${currency(state.goals?.earningsDaily)}, sleep ${sleepTarget}h`,
+    `Today: completion ${completion}%, score ${score}%, focus ${focusMinutes} min, study ${studyHours}h, earnings ${currency(earnings)}, sleep score ${sleepScore.score}%`,
+    `Streak: ${streak} days`,
+    `MIT: ${mit}`,
+    `Intention: ${intention}`,
+    `Top habits:\\n${tasks}`,
+  ].join("\\n");
+}
+
+function buildVoltarisHistory() {
+  const voltaris = getVoltarisState();
+  const history = voltaris.messages.slice(-12).map((msg) => ({
+    role: msg.role === "ai" ? "assistant" : "user",
+    text: msg.text,
+  }));
+  return history;
+}
+
+async function callVoltarisAI(message) {
+  const apiUrl = uiState.voltarisApiUrl;
+  const history = buildVoltarisHistory();
+  const context = uiState.voltarisContextEnabled ? buildVoltarisContext() : "";
+
+  const response = await fetch(apiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      history,
+      context,
+    }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const error = data?.error || "Voltaris server error";
+    throw new Error(error);
+  }
+  const data = await response.json();
+  return data.reply || "I have a suggestion if you want it.";
+}
+
+async function handleVoltarisSend() {
   if (!el.voltarisInput) return;
   const text = (el.voltarisInput.value ?? "").trim();
   if (!text) return;
   el.voltarisInput.value = "";
   voltarisPushMessage("user", text, { render: false });
+
+  if (uiState.voltarisAiEnabled) {
+    await checkVoltarisServer({ force: false });
+    if (voltarisServerStatus.state !== "online") {
+      voltarisPushMessage("ai", "AI is offline. Check the server and try again.");
+      return;
+    }
+    const placeholder = voltarisPushMessage("ai", "Thinking...", { render: true });
+    try {
+      const reply = await callVoltarisAI(text);
+      if (placeholder) {
+        voltarisUpdateMessage(placeholder.id, reply);
+      } else {
+        voltarisPushMessage("ai", reply);
+      }
+    } catch (error) {
+      const msg = error?.message || "Voltaris AI failed to respond.";
+      if (placeholder) {
+        voltarisUpdateMessage(placeholder.id, msg);
+      } else {
+        voltarisPushMessage("ai", msg);
+      }
+    }
+    return;
+  }
+
   const voltaris = getVoltarisState();
   if (voltaris.flow.step !== "idle") {
     voltarisHandleFlowInput(text);
@@ -5857,6 +6013,16 @@ function renderVoltarisPending(voltaris) {
 
 function renderVoltaris() {
   const voltaris = getVoltarisState();
+  if (el.voltarisApiInput && document.activeElement !== el.voltarisApiInput) {
+    el.voltarisApiInput.value = uiState.voltarisApiUrl || "";
+  }
+  if (el.voltarisAiToggle) el.voltarisAiToggle.checked = Boolean(uiState.voltarisAiEnabled);
+  if (el.voltarisContextToggle) el.voltarisContextToggle.checked = Boolean(uiState.voltarisContextEnabled);
+
+  if (el.voltarisStatus) {
+    const statusText = voltarisServerStatus.checking ? "Checking..." : voltarisServerStatus.message;
+    el.voltarisStatus.textContent = statusText;
+  }
   renderVoltarisMessages(voltaris);
   renderVoltarisPending(voltaris);
 }
@@ -6179,6 +6345,7 @@ function render() {
   renderAutoInsights();
   applyFocusMode();
   applyFlowMode();
+  checkVoltarisServer({ force: false }).then(() => renderVoltaris());
 }
 
 function escapeCsv(v) {
@@ -6666,6 +6833,27 @@ function bindEvents() {
   el.voltarisRoutineBtn?.addEventListener("click", () => voltarisSuggestRoutine());
   el.voltarisResetBtn?.addEventListener("click", () => resetVoltaris());
   el.voltarisAddPendingBtn?.addEventListener("click", () => voltarisApplyPendingTasks());
+  el.voltarisApiInput?.addEventListener("change", () => {
+    uiState.voltarisApiUrl = el.voltarisApiInput.value.trim();
+    saveUiState(uiState);
+    checkVoltarisServer({ force: true }).then(() => renderVoltaris());
+  });
+  el.voltarisCheckBtn?.addEventListener("click", () => {
+    checkVoltarisServer({ force: true }).then(() => renderVoltaris());
+  });
+  el.voltarisAiToggle?.addEventListener("change", () => {
+    uiState.voltarisAiEnabled = Boolean(el.voltarisAiToggle.checked);
+    saveUiState(uiState);
+    if (uiState.voltarisAiEnabled) {
+      checkVoltarisServer({ force: true }).then(() => renderVoltaris());
+    } else {
+      renderVoltaris();
+    }
+  });
+  el.voltarisContextToggle?.addEventListener("change", () => {
+    uiState.voltarisContextEnabled = Boolean(el.voltarisContextToggle.checked);
+    saveUiState(uiState);
+  });
 
   el.goalStudyInput?.addEventListener("input", () => {
     state.goals.studyDaily = Math.max(0, safeNumber(el.goalStudyInput.value));

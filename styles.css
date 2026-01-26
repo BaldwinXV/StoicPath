@@ -1270,6 +1270,16 @@ button.item{ font: inherit; }
   font-size:12px;
   color:var(--muted);
 }
+.checkLabel{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:12px;
+  color:var(--text);
+}
+.checkLabel input{
+  accent-color: var(--accent);
+}
 .smallBtn{
   border:1px solid rgba(255,255,255,0.14);
   background: rgba(255,255,255,0.06);

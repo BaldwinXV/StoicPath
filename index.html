@@ -1075,6 +1075,30 @@
                 <div class="card__meta">Habit architect</div>
               </div>
               <div class="card__body voltarisPanel">
+                <div class="grid2">
+                  <div class="field">
+                    <label class="field__label" for="voltarisApiInput">Voltaris API endpoint</label>
+                    <div class="row">
+                      <input class="field__input" id="voltarisApiInput" type="text" placeholder="http://localhost:8787/api/voltaris" />
+                      <button class="smallBtn" id="voltarisCheckBtn" type="button">Check</button>
+                    </div>
+                    <div class="hint" id="voltarisStatus">AI offline</div>
+                  </div>
+                  <div class="field">
+                    <label class="field__label">AI settings</label>
+                    <div class="row">
+                      <label class="checkLabel">
+                        <input type="checkbox" id="voltarisAiToggle" />
+                        <span>Enable AI replies</span>
+                      </label>
+                      <label class="checkLabel">
+                        <input type="checkbox" id="voltarisContextToggle" />
+                        <span>Share my goals & tasks</span>
+                      </label>
+                    </div>
+                    <div class="muted">AI uses a local server for privacy and API keys.</div>
+                  </div>
+                </div>
                 <div class="voltarisActions">
                   <button class="btn" id="voltarisBuildBtn" type="button">Build a habit</button>
                   <button class="btn" id="voltarisRoutineBtn" type="button">Plan a routine</button>
