@@ -47,6 +47,8 @@ Voltaris is a built-in habit architect:
 - Daily check-in captures focus, obstacles, mood, and energy
 - Action plan generator turns any situation into 3-7 steps
 - Long-term memory stores context so the AI remembers your priorities
+- Daily coach + weekly review buttons for guided planning
+- Action plans can be sent straight to Objectives
 
 Use it in **Manage -> Voltaris AI**.
 
@@ -147,6 +149,56 @@ http://localhost:8787/api/voltaris
 5. Toggle **Enable AI replies** and click **Check**.
 
 If the status reads **AI online**, Voltaris can chat like a real coach.
+
+## Multiplayer (Accounts + Admin) via Supabase
+
+This adds real accounts, an online leaderboard, and an admin view. It’s optional.
+
+### 1) Create Supabase project + tables
+
+Run this SQL in Supabase (SQL Editor):
+
+```sql
+create table if not exists profiles (
+  id uuid primary key,
+  email text,
+  display_name text,
+  xp_total bigint default 0,
+  level int default 1,
+  streak int default 0,
+  role text default 'member',
+  updated_at timestamptz default now()
+);
+
+alter table profiles enable row level security;
+
+create policy \"Profiles are readable\" on profiles
+  for select using (true);
+
+create policy \"Users can upsert themselves\" on profiles
+  for insert with check (auth.uid() = id);
+
+create policy \"Users can update themselves\" on profiles
+  for update using (auth.uid() = id);
+```
+
+### 2) Add Supabase config in the app
+
+Go to **Manage → Multiplayer & Admin**:
+
+- Supabase URL
+- Supabase anon key
+- Admin emails (comma-separated)
+- Click **Connect**
+
+### 3) Sign up / sign in
+
+Create an account, then click **Sync my stats**.
+
+### Admin note
+
+The “Admin View” is enforced client-side (by matching your email to the admin list).
+For locked-down admin access, add a server with service-role access later.
 
 ## Important Note About "Community"
 

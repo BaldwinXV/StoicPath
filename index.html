@@ -1102,7 +1102,16 @@
                 <div class="voltarisActions">
                   <button class="btn" id="voltarisBuildBtn" type="button">Build a habit</button>
                   <button class="btn" id="voltarisRoutineBtn" type="button">Plan a routine</button>
+                  <button class="btn" id="voltarisCoachBtn" type="button">Daily coach</button>
+                  <button class="btn" id="voltarisWeeklyBtn" type="button">Weekly review</button>
                   <button class="smallBtn" id="voltarisResetBtn" type="button">Reset</button>
+                </div>
+                <div class="voltarisActions" style="margin-top:6px">
+                  <button class="smallBtn" id="voltarisMemoryExtractBtn" type="button">Extract memory</button>
+                  <label class="checkLabel">
+                    <input type="checkbox" id="voltarisAutoMemoryToggle" />
+                    <span>Auto-save memory from AI</span>
+                  </label>
                 </div>
                 <div class="voltarisChatLog" id="voltarisChatLog" aria-live="polite"></div>
                 <div class="voltarisInputRow">
@@ -1194,6 +1203,78 @@
                 </div>
                 <div class="list" id="voltarisPendingList" aria-label="Voltaris pending habits"></div>
                 <div class="muted">Voltaris queues habits first so you can review points. New habits start on the currently selected date.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="card__title">Multiplayer & Admin</div>
+                <div class="card__meta" id="multiplayerStatus">Offline</div>
+              </div>
+              <div class="card__body">
+                <div class="grid2">
+                  <div class="field">
+                    <label class="field__label" for="supabaseUrlInput">Supabase URL</label>
+                    <input class="field__input" id="supabaseUrlInput" type="text" placeholder="https://xxxx.supabase.co" />
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="supabaseKeyInput">Supabase anon key</label>
+                    <input class="field__input" id="supabaseKeyInput" type="password" placeholder="anon key" />
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="supabaseAdminEmails">Admin emails</label>
+                    <input class="field__input" id="supabaseAdminEmails" type="text" placeholder="you@email.com, other@domain.com" />
+                  </div>
+                  <div class="field">
+                    <label class="field__label">Connection</label>
+                    <div class="row">
+                      <button class="btn" id="supabaseConnectBtn" type="button">Connect</button>
+                      <label class="checkLabel">
+                        <input type="checkbox" id="supabaseAutoSyncToggle" />
+                        <span>Auto-sync leaderboard</span>
+                      </label>
+                    </div>
+                    <div class="muted">Uses Supabase for accounts, leaderboard, and admin view.</div>
+                  </div>
+                </div>
+
+                <div class="grid2" style="margin-top:12px">
+                  <div class="field">
+                    <label class="field__label" for="supabaseEmailInput">Email</label>
+                    <input class="field__input" id="supabaseEmailInput" type="email" placeholder="you@email.com" />
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="supabasePasswordInput">Password</label>
+                    <input class="field__input" id="supabasePasswordInput" type="password" placeholder="••••••••" />
+                  </div>
+                </div>
+                <div class="row" style="margin-top:10px">
+                  <button class="btn" id="supabaseSignInBtn" type="button">Sign in</button>
+                  <button class="btn" id="supabaseSignUpBtn" type="button">Sign up</button>
+                  <button class="smallBtn" id="supabaseSignOutBtn" type="button">Sign out</button>
+                  <button class="smallBtn" id="supabaseSyncBtn" type="button">Sync my stats</button>
+                </div>
+                <div class="muted" id="supabaseAuthMeta">Not connected.</div>
+
+                <div class="card" style="margin-top:12px">
+                  <div class="card__head">
+                    <div class="card__title">Global Leaderboard</div>
+                    <div class="card__meta" id="globalLeaderboardMeta">Offline</div>
+                  </div>
+                  <div class="card__body">
+                    <div class="leaderboard" id="globalLeaderboardList" aria-label="Global leaderboard"></div>
+                  </div>
+                </div>
+
+                <div class="card" style="margin-top:12px">
+                  <div class="card__head">
+                    <div class="card__title">Admin View</div>
+                    <div class="card__meta" id="adminPanelMeta">Admins only</div>
+                  </div>
+                  <div class="card__body">
+                    <div class="list" id="adminUserList" aria-label="Admin user list"></div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1456,6 +1537,30 @@
   <input id="datePicker" class="srOnly" type="date" aria-hidden="true" />
   <input id="importFile" class="srOnly" type="file" accept="application/json" aria-hidden="true" />
 
+  <div class="voltarisDock">
+    <button class="voltarisDock__btn" id="voltarisDockBtn" type="button">Voltaris</button>
+    <div class="voltarisDock__panel" id="voltarisDockPanel" aria-hidden="true">
+      <div class="voltarisDock__head">
+        <div>
+          <div class="voltarisDock__title">Voltaris</div>
+          <div class="voltarisDock__meta" id="voltarisDockStatus">AI offline</div>
+        </div>
+        <button class="smallBtn" id="voltarisDockCloseBtn" type="button">Close</button>
+      </div>
+      <div class="voltarisChatLog" id="voltarisDockLog" aria-live="polite"></div>
+      <div class="voltarisActions">
+        <button class="btn" id="voltarisDockCoachBtn" type="button">Daily coach</button>
+        <button class="btn" id="voltarisDockRoutineBtn" type="button">Plan routine</button>
+        <button class="smallBtn" id="voltarisDockMemoryBtn" type="button">Extract memory</button>
+      </div>
+      <div class="voltarisInputRow">
+        <input class="field__input" id="voltarisDockInput" type="text" placeholder="Ask Voltaris anything..." />
+        <button class="btn" id="voltarisDockSendBtn" type="button">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="script.js"></script>
 </body>

@@ -519,7 +519,11 @@ const el = {
   voltarisSendBtn: $("voltarisSendBtn"),
   voltarisBuildBtn: $("voltarisBuildBtn"),
   voltarisRoutineBtn: $("voltarisRoutineBtn"),
+  voltarisCoachBtn: $("voltarisCoachBtn"),
+  voltarisWeeklyBtn: $("voltarisWeeklyBtn"),
   voltarisResetBtn: $("voltarisResetBtn"),
+  voltarisMemoryExtractBtn: $("voltarisMemoryExtractBtn"),
+  voltarisAutoMemoryToggle: $("voltarisAutoMemoryToggle"),
   voltarisPendingList: $("voltarisPendingList"),
   voltarisPendingMeta: $("voltarisPendingMeta"),
   voltarisAddPendingBtn: $("voltarisAddPendingBtn"),
@@ -528,6 +532,16 @@ const el = {
   voltarisStatus: $("voltarisStatus"),
   voltarisAiToggle: $("voltarisAiToggle"),
   voltarisContextToggle: $("voltarisContextToggle"),
+  voltarisDockBtn: $("voltarisDockBtn"),
+  voltarisDockPanel: $("voltarisDockPanel"),
+  voltarisDockCloseBtn: $("voltarisDockCloseBtn"),
+  voltarisDockLog: $("voltarisDockLog"),
+  voltarisDockInput: $("voltarisDockInput"),
+  voltarisDockSendBtn: $("voltarisDockSendBtn"),
+  voltarisDockCoachBtn: $("voltarisDockCoachBtn"),
+  voltarisDockRoutineBtn: $("voltarisDockRoutineBtn"),
+  voltarisDockMemoryBtn: $("voltarisDockMemoryBtn"),
+  voltarisDockStatus: $("voltarisDockStatus"),
   voltarisCheckinFocus: $("voltarisCheckinFocus"),
   voltarisCheckinObstacle: $("voltarisCheckinObstacle"),
   voltarisCheckinWin: $("voltarisCheckinWin"),
@@ -546,6 +560,23 @@ const el = {
   voltarisMemoryInput: $("voltarisMemoryInput"),
   voltarisMemoryAddBtn: $("voltarisMemoryAddBtn"),
   voltarisMemoryList: $("voltarisMemoryList"),
+  supabaseUrlInput: $("supabaseUrlInput"),
+  supabaseKeyInput: $("supabaseKeyInput"),
+  supabaseAdminEmails: $("supabaseAdminEmails"),
+  supabaseConnectBtn: $("supabaseConnectBtn"),
+  supabaseAutoSyncToggle: $("supabaseAutoSyncToggle"),
+  supabaseEmailInput: $("supabaseEmailInput"),
+  supabasePasswordInput: $("supabasePasswordInput"),
+  supabaseSignInBtn: $("supabaseSignInBtn"),
+  supabaseSignUpBtn: $("supabaseSignUpBtn"),
+  supabaseSignOutBtn: $("supabaseSignOutBtn"),
+  supabaseSyncBtn: $("supabaseSyncBtn"),
+  supabaseAuthMeta: $("supabaseAuthMeta"),
+  globalLeaderboardList: $("globalLeaderboardList"),
+  globalLeaderboardMeta: $("globalLeaderboardMeta"),
+  adminUserList: $("adminUserList"),
+  adminPanelMeta: $("adminPanelMeta"),
+  multiplayerStatus: $("multiplayerStatus"),
 
   goalStudyInput: $("goalStudyInput"),
   goalEarningsInput: $("goalEarningsInput"),
@@ -1341,7 +1372,12 @@ if (!Array.isArray(uiState.trendMetrics)) uiState.trendMetrics = ["completion", 
 if (!Array.isArray(uiState.reminderDays)) uiState.reminderDays = [1, 2, 3, 4, 5, 6, 0];
 if (!("voltarisAiEnabled" in uiState)) uiState.voltarisAiEnabled = false;
 if (!("voltarisContextEnabled" in uiState)) uiState.voltarisContextEnabled = true;
+if (!("voltarisAutoMemory" in uiState)) uiState.voltarisAutoMemory = false;
 if (!("voltarisApiUrl" in uiState)) uiState.voltarisApiUrl = "http://localhost:8787/api/voltaris";
+if (!("supabaseUrl" in uiState)) uiState.supabaseUrl = "";
+if (!("supabaseKey" in uiState)) uiState.supabaseKey = "";
+if (!("supabaseAdminEmails" in uiState)) uiState.supabaseAdminEmails = "";
+if (!("supabaseAutoSync" in uiState)) uiState.supabaseAutoSync = false;
 
 let activeDate = todayLocalDate();
 let activeNotesTab = "wins"; // wins | lessons | tomorrow
@@ -1377,6 +1413,16 @@ let sync = {
   unsub: null,
   uploadTimer: null,
   lastPulledUpdatedAt: 0,
+};
+
+let supabaseClient = null;
+let multiplayerState = {
+  connected: false,
+  user: null,
+  role: "member",
+  lastSyncAt: 0,
+  leaderboard: [],
+  adminUsers: [],
 };
 
 function getDayRecord(isoDate) {
@@ -5368,6 +5414,7 @@ function scheduleProgressRefresh(delay = 180) {
     renderLeaderboard();
     renderAutoInsights();
     scheduleChartsRefresh();
+    scheduleMultiplayerSync();
   }, delay);
 }
 
@@ -5964,10 +6011,10 @@ function buildVoltarisHistory() {
   return history;
 }
 
-async function callVoltarisAI(message) {
+async function callVoltarisAI(message, options = {}) {
   const apiUrl = uiState.voltarisApiUrl;
-  const history = buildVoltarisHistory();
-  const context = uiState.voltarisContextEnabled ? buildVoltarisContext() : "";
+  const history = options.history ?? buildVoltarisHistory();
+  const context = options.context ?? (uiState.voltarisContextEnabled ? buildVoltarisContext() : "");
 
   const response = await fetch(apiUrl, {
     method: "POST",
@@ -5975,8 +6022,8 @@ async function callVoltarisAI(message) {
     body: JSON.stringify({
       message,
       history,
-      context,
-    }),
+    context,
+  }),
   });
 
   if (!response.ok) {
@@ -5988,12 +6035,10 @@ async function callVoltarisAI(message) {
   return data.reply || "I have a suggestion if you want it.";
 }
 
-async function handleVoltarisSend() {
-  if (!el.voltarisInput) return;
-  const text = (el.voltarisInput.value ?? "").trim();
-  if (!text) return;
-  el.voltarisInput.value = "";
-  voltarisPushMessage("user", text, { render: false });
+async function sendVoltarisMessage(text) {
+  const content = String(text ?? "").trim();
+  if (!content) return;
+  voltarisPushMessage("user", content, { render: false });
 
   if (uiState.voltarisAiEnabled) {
     await checkVoltarisServer({ force: false });
@@ -6003,11 +6048,14 @@ async function handleVoltarisSend() {
     }
     const placeholder = voltarisPushMessage("ai", "Thinking...", { render: true });
     try {
-      const reply = await callVoltarisAI(text);
+      const reply = await callVoltarisAI(content);
       if (placeholder) {
         voltarisUpdateMessage(placeholder.id, reply);
       } else {
         voltarisPushMessage("ai", reply);
+      }
+      if (uiState.voltarisAutoMemory) {
+        await extractMemoryFromText(reply);
       }
     } catch (error) {
       const msg = error?.message || "Voltaris AI failed to respond.";
@@ -6022,11 +6070,27 @@ async function handleVoltarisSend() {
 
   const voltaris = getVoltarisState();
   if (voltaris.flow.step !== "idle") {
-    voltarisHandleFlowInput(text);
+    voltarisHandleFlowInput(content);
   } else {
-    voltarisHandleIdleInput(text);
+    voltarisHandleIdleInput(content);
   }
   renderVoltaris();
+}
+
+async function handleVoltarisSend() {
+  if (!el.voltarisInput) return;
+  const text = (el.voltarisInput.value ?? "").trim();
+  if (!text) return;
+  el.voltarisInput.value = "";
+  await sendVoltarisMessage(text);
+}
+
+async function handleVoltarisDockSend() {
+  if (!el.voltarisDockInput) return;
+  const text = (el.voltarisDockInput.value ?? "").trim();
+  if (!text) return;
+  el.voltarisDockInput.value = "";
+  await sendVoltarisMessage(text);
 }
 
 function renderVoltarisMessages(voltaris) {
@@ -6257,6 +6321,43 @@ function parsePlanStepsFromText(text) {
   };
 }
 
+function parseMemoryItems(text) {
+  if (!text) return [];
+  const lines = text
+    .split("\\n")
+    .map((line) => line.replace(/^[-*•\\d.]+\\s*/, "").trim())
+    .filter(Boolean);
+  return lines.slice(0, 3);
+}
+
+async function extractMemoryFromText(sourceText) {
+  if (!sourceText || !uiState.voltarisAiEnabled) return;
+  await checkVoltarisServer({ force: false });
+  if (voltarisServerStatus.state !== "online") return;
+
+  try {
+    const reply = await callVoltarisAI(
+      `Extract 1-3 concise long-term memory items from this message. Use bullet points only.\\n\\nMessage:\\n${sourceText}`,
+      { context: "", history: [] }
+    );
+    const items = parseMemoryItems(reply);
+    if (!items.length) return;
+    items.forEach((item) => addVoltarisMemory(item));
+    voltarisPushMessage("ai", `Saved ${items.length} memory item${items.length > 1 ? "s" : ""}.`);
+  } catch {
+    // ignore extraction errors
+  }
+}
+
+function getLastVoltarisAiMessageText() {
+  const voltaris = getVoltarisState();
+  for (let i = voltaris.messages.length - 1; i >= 0; i -= 1) {
+    const msg = voltaris.messages[i];
+    if (msg.role === "ai" && msg.text) return msg.text;
+  }
+  return "";
+}
+
 function createLocalActionPlan(prompt) {
   const base = String(prompt ?? "").trim();
   const title = base ? `Plan: ${base.slice(0, 60)}` : "Action plan";
@@ -6281,6 +6382,94 @@ function addVoltarisPlan(plan, sourceText = "") {
   voltaris.plans = normalizeVoltarisPlans([normalized, ...(voltaris.plans ?? [])]);
   voltarisSave({ render: true });
   return normalized;
+}
+
+function createLocalDailyCoach() {
+  const iso = toISODate(activeDate);
+  const rec = getDayRecord(iso);
+  const focus = rec.mit?.text?.trim() || "your MIT";
+  const sleepTarget = safeNumber(state.goals?.sleepDaily);
+  const sleepScore = computeSleepScore(rec.checkin?.sleep, sleepTarget);
+  return [
+    "Here’s your daily focus:",
+    `1. Lock the MIT: ${focus}.`,
+    "2. Protect one deep work block (60-90m).",
+    "3. Finish a small win before noon to build momentum.",
+    `4. Sleep score today: ${sleepScore.score}%. Adjust tonight if needed.`,
+  ].join("\\n");
+}
+
+function createLocalWeeklyReview() {
+  const review = computeWeeklyReview(activeDate);
+  const items = buildReviewItems(review);
+  const wins = items.wins.slice(0, 3).map((item) => `- ${item}`).join("\\n") || "- No wins logged yet.";
+  const misses = items.misses.slice(0, 3).map((item) => `- ${item}`).join("\\n") || "- No misses yet.";
+  const focus = items.focus.slice(0, 3).map((item) => `- ${item}`).join("\\n") || "- Pick 1-3 habits to push.";
+  return [
+    "Weekly Review Summary",
+    "Wins:",
+    wins,
+    "Needs attention:",
+    misses,
+    "Next week focus:",
+    focus,
+  ].join("\\n");
+}
+
+async function generateDailyCoach() {
+  if (uiState.voltarisAiEnabled) {
+    await checkVoltarisServer({ force: false });
+    if (voltarisServerStatus.state === "online") {
+      const placeholder = voltarisPushMessage("ai", "Generating daily coaching...", { render: true });
+      try {
+        const reply = await callVoltarisAI("Give me a concise daily coaching plan based on my context.");
+        if (placeholder) {
+          voltarisUpdateMessage(placeholder.id, reply);
+        } else {
+          voltarisPushMessage("ai", reply);
+        }
+        if (uiState.voltarisAutoMemory) await extractMemoryFromText(reply);
+        return;
+      } catch (error) {
+        const msg = error?.message || "Daily coaching failed.";
+        if (placeholder) {
+          voltarisUpdateMessage(placeholder.id, msg);
+        } else {
+          voltarisPushMessage("ai", msg);
+        }
+      }
+    }
+  }
+
+  voltarisPushMessage("ai", createLocalDailyCoach());
+}
+
+async function generateWeeklyReview() {
+  if (uiState.voltarisAiEnabled) {
+    await checkVoltarisServer({ force: false });
+    if (voltarisServerStatus.state === "online") {
+      const placeholder = voltarisPushMessage("ai", "Generating weekly review...", { render: true });
+      try {
+        const reply = await callVoltarisAI("Generate a concise weekly review with wins, misses, and focus.");
+        if (placeholder) {
+          voltarisUpdateMessage(placeholder.id, reply);
+        } else {
+          voltarisPushMessage("ai", reply);
+        }
+        if (uiState.voltarisAutoMemory) await extractMemoryFromText(reply);
+        return;
+      } catch (error) {
+        const msg = error?.message || "Weekly review failed.";
+        if (placeholder) {
+          voltarisUpdateMessage(placeholder.id, msg);
+        } else {
+          voltarisPushMessage("ai", msg);
+        }
+      }
+    }
+  }
+
+  voltarisPushMessage("ai", createLocalWeeklyReview());
 }
 
 async function generateVoltarisPlan() {
@@ -6401,16 +6590,287 @@ function renderVoltaris() {
   }
   if (el.voltarisAiToggle) el.voltarisAiToggle.checked = Boolean(uiState.voltarisAiEnabled);
   if (el.voltarisContextToggle) el.voltarisContextToggle.checked = Boolean(uiState.voltarisContextEnabled);
+  if (el.voltarisAutoMemoryToggle) el.voltarisAutoMemoryToggle.checked = Boolean(uiState.voltarisAutoMemory);
 
   if (el.voltarisStatus) {
     const statusText = voltarisServerStatus.checking ? "Checking..." : voltarisServerStatus.message;
     el.voltarisStatus.textContent = statusText;
   }
+  if (el.voltarisDockStatus) {
+    const statusText = voltarisServerStatus.checking ? "Checking..." : voltarisServerStatus.message;
+    el.voltarisDockStatus.textContent = statusText;
+  }
   renderVoltarisMessages(voltaris);
+  renderVoltarisDock(voltaris);
   renderVoltarisPending(voltaris);
   renderVoltarisCheckin(voltaris);
   renderVoltarisPlans(voltaris);
   renderVoltarisMemory(voltaris);
+}
+
+function renderVoltarisDock(voltaris) {
+  if (!el.voltarisDockLog) return;
+  el.voltarisDockLog.innerHTML = "";
+  for (const message of voltaris.messages) {
+    const row = document.createElement("div");
+    row.className = `voltarisMsg voltarisMsg--${message.role}`;
+    const bubble = document.createElement("div");
+    bubble.className = "voltarisBubble";
+    bubble.textContent = message.text;
+    row.appendChild(bubble);
+    el.voltarisDockLog.appendChild(row);
+  }
+  el.voltarisDockLog.scrollTop = el.voltarisDockLog.scrollHeight;
+}
+
+function setVoltarisDockOpen(open) {
+  if (!el.voltarisDockPanel) return;
+  el.voltarisDockPanel.classList.toggle("is-open", open);
+  el.voltarisDockPanel.setAttribute("aria-hidden", String(!open));
+}
+
+function parseAdminEmails(raw) {
+  return String(raw ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function getSupabaseConfig() {
+  const url = (uiState.supabaseUrl ?? "").trim();
+  const key = (uiState.supabaseKey ?? "").trim();
+  if (!url || !key) return null;
+  return { url, key };
+}
+
+async function initSupabaseClient() {
+  const config = getSupabaseConfig();
+  if (!config || !window.supabase?.createClient) return null;
+  if (!supabaseClient) {
+    supabaseClient = window.supabase.createClient(config.url, config.key, {
+      auth: { persistSession: true, autoRefreshToken: true },
+    });
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      multiplayerState.user = session?.user ?? null;
+      updateMultiplayerStatus();
+    });
+  }
+  return supabaseClient;
+}
+
+async function connectSupabase() {
+  const client = await initSupabaseClient();
+  if (!client) {
+    multiplayerState.connected = false;
+    updateMultiplayerStatus();
+    return;
+  }
+  await loadSupabaseSession();
+  await syncPublicStats();
+  await loadGlobalLeaderboard();
+  await loadAdminUsers();
+  renderMultiplayer();
+}
+
+async function supabaseSignIn(email, password) {
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signInWithPassword({ email, password });
+  await loadSupabaseSession();
+  await syncPublicStats();
+  await loadGlobalLeaderboard();
+  await loadAdminUsers();
+}
+
+async function supabaseSignUp(email, password) {
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signUp({ email, password });
+  await loadSupabaseSession();
+  await syncPublicStats();
+  await loadGlobalLeaderboard();
+  await loadAdminUsers();
+}
+
+async function supabaseSignOut() {
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signOut();
+  multiplayerState.user = null;
+  multiplayerState.role = "member";
+  renderMultiplayer();
+}
+
+let multiplayerSyncTimer = null;
+function scheduleMultiplayerSync(delay = 60000) {
+  if (!uiState.supabaseAutoSync) return;
+  if (multiplayerSyncTimer) window.clearTimeout(multiplayerSyncTimer);
+  multiplayerSyncTimer = window.setTimeout(async () => {
+    multiplayerSyncTimer = null;
+    await syncPublicStats();
+    await loadGlobalLeaderboard();
+    await loadAdminUsers();
+    renderMultiplayer();
+  }, delay);
+}
+
+function updateMultiplayerStatus() {
+  multiplayerState.connected = Boolean(supabaseClient);
+  if (el.multiplayerStatus) {
+    el.multiplayerStatus.textContent = multiplayerState.user
+      ? `Connected as ${multiplayerState.user.email ?? "user"}`
+      : multiplayerState.connected
+        ? "Connected (not signed in)"
+        : "Offline";
+  }
+  if (el.supabaseAuthMeta) {
+    el.supabaseAuthMeta.textContent = multiplayerState.user
+      ? `Signed in as ${multiplayerState.user.email ?? "user"} • role ${multiplayerState.role}`
+      : "Not connected.";
+  }
+}
+
+async function loadSupabaseSession() {
+  if (!supabaseClient) return null;
+  const { data } = await supabaseClient.auth.getSession();
+  multiplayerState.user = data?.session?.user ?? null;
+  return multiplayerState.user;
+}
+
+async function syncPublicStats() {
+  if (!supabaseClient || !multiplayerState.user) return;
+  const levelInfo = computeAllTimeXp();
+  const streak = computeStreakFrom(activeDate);
+  const adminEmails = parseAdminEmails(uiState.supabaseAdminEmails);
+  const role = adminEmails.includes((multiplayerState.user.email ?? "").toLowerCase()) ? "admin" : "member";
+
+  const payload = {
+    id: multiplayerState.user.id,
+    email: multiplayerState.user.email ?? "",
+    display_name: state.profile?.username ?? "You",
+    xp_total: levelInfo.totalXp,
+    level: levelInfo.level,
+    streak,
+    role,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabaseClient.from("profiles").upsert(payload, { onConflict: "id" });
+  if (!error) {
+    multiplayerState.role = role;
+    multiplayerState.lastSyncAt = Date.now();
+  }
+}
+
+async function loadGlobalLeaderboard() {
+  if (!supabaseClient) return;
+  const { data } = await supabaseClient
+    .from("profiles")
+    .select("id, display_name, xp_total, level, streak, updated_at")
+    .order("xp_total", { ascending: false })
+    .limit(25);
+  multiplayerState.leaderboard = Array.isArray(data) ? data : [];
+}
+
+async function loadAdminUsers() {
+  if (!supabaseClient || multiplayerState.role !== "admin") return;
+  const { data } = await supabaseClient
+    .from("profiles")
+    .select("id, email, display_name, xp_total, level, streak, updated_at, role")
+    .order("updated_at", { ascending: false })
+    .limit(50);
+  multiplayerState.adminUsers = Array.isArray(data) ? data : [];
+}
+
+function renderMultiplayer() {
+  if (el.supabaseUrlInput && document.activeElement !== el.supabaseUrlInput) {
+    el.supabaseUrlInput.value = uiState.supabaseUrl ?? "";
+  }
+  if (el.supabaseKeyInput && document.activeElement !== el.supabaseKeyInput) {
+    el.supabaseKeyInput.value = uiState.supabaseKey ?? "";
+  }
+  if (el.supabaseAdminEmails && document.activeElement !== el.supabaseAdminEmails) {
+    el.supabaseAdminEmails.value = uiState.supabaseAdminEmails ?? "";
+  }
+  if (el.supabaseAutoSyncToggle) el.supabaseAutoSyncToggle.checked = Boolean(uiState.supabaseAutoSync);
+
+  updateMultiplayerStatus();
+
+  if (el.globalLeaderboardList) {
+    el.globalLeaderboardList.innerHTML = "";
+    if (!multiplayerState.leaderboard.length) {
+      const empty = document.createElement("div");
+      empty.className = "emptyState";
+      empty.textContent = supabaseClient ? "No online stats yet." : "Connect Supabase to enable.";
+      el.globalLeaderboardList.appendChild(empty);
+    } else {
+      multiplayerState.leaderboard.forEach((entry, index) => {
+        const row = document.createElement("div");
+        row.className = "leaderboardRow";
+        const left = document.createElement("div");
+        const label = document.createElement("div");
+        label.className = "leaderboardLabel";
+        label.textContent = `${index + 1}. ${entry.display_name || "Unknown"}`;
+        const meta = document.createElement("div");
+        meta.className = "leaderboardMeta";
+        meta.textContent = `Level ${entry.level ?? 1} • ${formatXp(entry.xp_total ?? 0)} XP`;
+        left.appendChild(label);
+        left.appendChild(meta);
+        const delta = document.createElement("div");
+        delta.className = "leaderboardDelta is-flat";
+        delta.textContent = `#${index + 1}`;
+        row.appendChild(left);
+        row.appendChild(delta);
+        el.globalLeaderboardList.appendChild(row);
+      });
+    }
+  }
+
+  if (el.globalLeaderboardMeta) {
+    el.globalLeaderboardMeta.textContent = supabaseClient
+      ? `${multiplayerState.leaderboard.length || 0} players`
+      : "Offline";
+  }
+
+  if (el.adminUserList) {
+    el.adminUserList.innerHTML = "";
+    if (multiplayerState.role !== "admin") {
+      const empty = document.createElement("div");
+      empty.className = "emptyState";
+      empty.textContent = "Admin access required.";
+      el.adminUserList.appendChild(empty);
+    } else if (!multiplayerState.adminUsers.length) {
+      const empty = document.createElement("div");
+      empty.className = "emptyState";
+      empty.textContent = "No users yet.";
+      el.adminUserList.appendChild(empty);
+    } else {
+      multiplayerState.adminUsers.forEach((user) => {
+        const item = document.createElement("div");
+        item.className = "item";
+        const top = document.createElement("div");
+        top.className = "item__top";
+        const title = document.createElement("div");
+        title.className = "item__title";
+        title.textContent = user.display_name || user.email || "Unknown";
+        const actions = document.createElement("div");
+        actions.className = "item__actions";
+        const badge = document.createElement("span");
+        badge.className = "pill";
+        badge.textContent = user.role || "member";
+        actions.appendChild(badge);
+        top.appendChild(title);
+        top.appendChild(actions);
+        const meta = document.createElement("div");
+        meta.className = "item__meta";
+        meta.textContent = `Level ${user.level ?? 1} • ${formatXp(user.xp_total ?? 0)} XP • ${user.email ?? ""}`;
+        item.appendChild(top);
+        item.appendChild(meta);
+        el.adminUserList.appendChild(item);
+      });
+    }
+  }
+
+  if (el.adminPanelMeta) {
+    el.adminPanelMeta.textContent = multiplayerState.role === "admin" ? "Full access" : "Admins only";
+  }
 }
 
 function buildPerfectDot(dateObj) {
@@ -6721,6 +7181,10 @@ function render() {
   renderHistory();
   renderTaskStats();
   renderVoltaris();
+  renderMultiplayer();
+  if (!supabaseClient && getSupabaseConfig()) {
+    connectSupabase();
+  }
   renderTaskManager();
   renderAntiHabitManager();
   renderSocialSteps();
@@ -7217,7 +7681,21 @@ function bindEvents() {
   });
   el.voltarisBuildBtn?.addEventListener("click", () => voltarisStartHabitFlow());
   el.voltarisRoutineBtn?.addEventListener("click", () => voltarisSuggestRoutine());
+  el.voltarisCoachBtn?.addEventListener("click", () => generateDailyCoach());
+  el.voltarisWeeklyBtn?.addEventListener("click", () => generateWeeklyReview());
   el.voltarisResetBtn?.addEventListener("click", () => resetVoltaris());
+  el.voltarisMemoryExtractBtn?.addEventListener("click", () => {
+    const last = getLastVoltarisAiMessageText();
+    if (!last) {
+      voltarisPushMessage("ai", "No AI message to extract memory from yet.");
+      return;
+    }
+    extractMemoryFromText(last);
+  });
+  el.voltarisAutoMemoryToggle?.addEventListener("change", () => {
+    uiState.voltarisAutoMemory = Boolean(el.voltarisAutoMemoryToggle.checked);
+    saveUiState(uiState);
+  });
   el.voltarisAddPendingBtn?.addEventListener("click", () => voltarisApplyPendingTasks());
   el.voltarisApiInput?.addEventListener("change", () => {
     uiState.voltarisApiUrl = el.voltarisApiInput.value.trim();
@@ -7239,6 +7717,26 @@ function bindEvents() {
   el.voltarisContextToggle?.addEventListener("change", () => {
     uiState.voltarisContextEnabled = Boolean(el.voltarisContextToggle.checked);
     saveUiState(uiState);
+  });
+
+  el.voltarisDockBtn?.addEventListener("click", () => setVoltarisDockOpen(true));
+  el.voltarisDockCloseBtn?.addEventListener("click", () => setVoltarisDockOpen(false));
+  el.voltarisDockSendBtn?.addEventListener("click", () => handleVoltarisDockSend());
+  el.voltarisDockInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleVoltarisDockSend();
+    }
+  });
+  el.voltarisDockCoachBtn?.addEventListener("click", () => generateDailyCoach());
+  el.voltarisDockRoutineBtn?.addEventListener("click", () => voltarisSuggestRoutine());
+  el.voltarisDockMemoryBtn?.addEventListener("click", () => {
+    const last = getLastVoltarisAiMessageText();
+    if (!last) {
+      voltarisPushMessage("ai", "No AI message to extract memory from yet.");
+      return;
+    }
+    extractMemoryFromText(last);
   });
 
   const updateCheckinLabels = () => {
@@ -7288,6 +7786,49 @@ function bindEvents() {
       e.preventDefault();
       el.voltarisMemoryAddBtn?.click();
     }
+  });
+
+  el.supabaseConnectBtn?.addEventListener("click", async () => {
+    uiState.supabaseUrl = el.supabaseUrlInput?.value ?? "";
+    uiState.supabaseKey = el.supabaseKeyInput?.value ?? "";
+    uiState.supabaseAdminEmails = el.supabaseAdminEmails?.value ?? "";
+    uiState.supabaseAutoSync = Boolean(el.supabaseAutoSyncToggle?.checked);
+    saveUiState(uiState);
+    await connectSupabase();
+  });
+
+  el.supabaseAutoSyncToggle?.addEventListener("change", () => {
+    uiState.supabaseAutoSync = Boolean(el.supabaseAutoSyncToggle?.checked);
+    saveUiState(uiState);
+    scheduleMultiplayerSync(1000);
+  });
+
+  el.supabaseSignInBtn?.addEventListener("click", async () => {
+    await connectSupabase();
+    await supabaseSignIn(el.supabaseEmailInput?.value ?? "", el.supabasePasswordInput?.value ?? "");
+    await loadGlobalLeaderboard();
+    await loadAdminUsers();
+    renderMultiplayer();
+  });
+
+  el.supabaseSignUpBtn?.addEventListener("click", async () => {
+    await connectSupabase();
+    await supabaseSignUp(el.supabaseEmailInput?.value ?? "", el.supabasePasswordInput?.value ?? "");
+    await loadGlobalLeaderboard();
+    await loadAdminUsers();
+    renderMultiplayer();
+  });
+
+  el.supabaseSignOutBtn?.addEventListener("click", async () => {
+    await supabaseSignOut();
+  });
+
+  el.supabaseSyncBtn?.addEventListener("click", async () => {
+    await connectSupabase();
+    await syncPublicStats();
+    await loadGlobalLeaderboard();
+    await loadAdminUsers();
+    renderMultiplayer();
   });
 
   el.goalStudyInput?.addEventListener("input", () => {
