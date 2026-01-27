@@ -39,7 +39,7 @@ function normalizeHistory(list) {
     .filter((item) => item && typeof item.text === "string")
     .map((item) => ({
       role: item.role === "assistant" ? "assistant" : "user",
-      content: [{ type: "text", text: item.text }],
+      content: [{ type: "input_text", text: item.text }],
     }));
 }
 
@@ -72,12 +72,12 @@ app.post("/api/voltaris", async (req, res) => {
   const input = [
     {
       role: "system",
-      content: [{ type: "text", text: buildSystemPrompt(context) }],
+      content: [{ type: "input_text", text: buildSystemPrompt(context) }],
     },
     ...normalizeHistory(history),
     {
       role: "user",
-      content: [{ type: "text", text: message }],
+      content: [{ type: "input_text", text: message }],
     },
   ];
 

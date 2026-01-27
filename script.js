@@ -1371,7 +1371,7 @@ if (!("trendRange" in uiState)) uiState.trendRange = 30;
 if (!Array.isArray(uiState.trendMetrics)) uiState.trendMetrics = ["completion", "deepwork", "focus"];
 if (!Array.isArray(uiState.reminderDays)) uiState.reminderDays = [1, 2, 3, 4, 5, 6, 0];
 if (!("voltarisAiEnabled" in uiState)) uiState.voltarisAiEnabled = false;
-if (!("voltarisContextEnabled" in uiState)) uiState.voltarisContextEnabled = true;
+if (!("voltarisContextEnabled" in uiState)) uiState.voltarisContextEnabled = false;
 if (!("voltarisAutoMemory" in uiState)) uiState.voltarisAutoMemory = false;
 if (!("voltarisApiUrl" in uiState)) uiState.voltarisApiUrl = "http://localhost:8787/api/voltaris";
 if (!("supabaseUrl" in uiState)) uiState.supabaseUrl = "";
@@ -5419,8 +5419,8 @@ function scheduleProgressRefresh(delay = 180) {
 }
 
 let voltarisServerStatus = {
-  state: "unknown",
-  message: "AI offline",
+  state: "disabled",
+  message: "Free mode (AI off)",
   checkedAt: 0,
   checking: false,
 };
@@ -5435,6 +5435,15 @@ function voltarisHealthUrl(apiUrl) {
 
 async function checkVoltarisServer({ force = false } = {}) {
   const now = Date.now();
+  if (!uiState.voltarisAiEnabled) {
+    voltarisServerStatus = {
+      state: "disabled",
+      message: "Free mode (AI off)",
+      checkedAt: now,
+      checking: false,
+    };
+    return voltarisServerStatus;
+  }
   if (!force && now - voltarisServerStatus.checkedAt < 20000) return voltarisServerStatus;
   const apiUrl = uiState.voltarisApiUrl;
   const healthUrl = voltarisHealthUrl(apiUrl);
@@ -6592,12 +6601,13 @@ function renderVoltaris() {
   if (el.voltarisContextToggle) el.voltarisContextToggle.checked = Boolean(uiState.voltarisContextEnabled);
   if (el.voltarisAutoMemoryToggle) el.voltarisAutoMemoryToggle.checked = Boolean(uiState.voltarisAutoMemory);
 
+  const statusText = !uiState.voltarisAiEnabled
+    ? "Free mode (AI off)"
+    : (voltarisServerStatus.checking ? "Checking..." : voltarisServerStatus.message);
   if (el.voltarisStatus) {
-    const statusText = voltarisServerStatus.checking ? "Checking..." : voltarisServerStatus.message;
     el.voltarisStatus.textContent = statusText;
   }
   if (el.voltarisDockStatus) {
-    const statusText = voltarisServerStatus.checking ? "Checking..." : voltarisServerStatus.message;
     el.voltarisDockStatus.textContent = statusText;
   }
   renderVoltarisMessages(voltaris);
@@ -7711,6 +7721,12 @@ function bindEvents() {
     if (uiState.voltarisAiEnabled) {
       checkVoltarisServer({ force: true }).then(() => renderVoltaris());
     } else {
+      voltarisServerStatus = {
+        state: "disabled",
+        message: "Free mode (AI off)",
+        checkedAt: Date.now(),
+        checking: false,
+      };
       renderVoltaris();
     }
   });
