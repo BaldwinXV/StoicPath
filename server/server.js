@@ -7,12 +7,18 @@ const port = process.env.PORT || 8787;
 const apiKey = process.env.OPENAI_API_KEY;
 const baseUrl = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 const defaultModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
-const provider = "openai";
+const provider = (process.env.AI_PROVIDER || (process.env.OLLAMA_MODEL ? "ollama" : "openai")).toLowerCase();
+const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+const ollamaModel = process.env.OLLAMA_MODEL || "llama3.1";
 
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (_req, res) => {
+  if (provider === "ollama") {
+    res.json({ ok: true, model: ollamaModel, provider: "ollama" });
+    return;
+  }
   if (!apiKey) {
     res.status(500).json({ ok: false, error: "Missing OPENAI_API_KEY" });
     return;
@@ -49,6 +55,16 @@ function normalizeHistory(list) {
     }));
 }
 
+function normalizeHistoryForOllama(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((item) => item && typeof item.text === "string")
+    .map((item) => ({
+      role: item.role === "assistant" ? "assistant" : "user",
+      content: item.text,
+    }));
+}
+
 function extractOutputText(data) {
   if (!data) return "";
   if (typeof data.output_text === "string") return data.output_text;
@@ -71,6 +87,33 @@ app.post("/api/voltaris", async (req, res) => {
   }
 
   try {
+    if (provider === "ollama") {
+      const messages = [
+        { role: "system", content: buildSystemPrompt(context) },
+        ...normalizeHistoryForOllama(history),
+        { role: "user", content: message },
+      ];
+
+      const response = await fetch(`${ollamaBaseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: model || ollamaModel,
+          messages,
+          stream: false,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        res.status(response.status).json({ error: data?.error || "Ollama request failed" });
+        return;
+      }
+      const reply = data?.message?.content || data?.response || "I have a suggestion if you want it.";
+      res.json({ reply, model: data?.model || ollamaModel, provider: "ollama" });
+      return;
+    }
+
     if (!apiKey) {
       res.status(500).json({ error: "Server missing OPENAI_API_KEY" });
       return;
