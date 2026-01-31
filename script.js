@@ -594,7 +594,6 @@ const el = {
   autoBackupToggle: $("autoBackupToggle"),
   clearBackupsBtn: $("clearBackupsBtn"),
   backupList: $("backupList"),
-  ollamaCopyBtn: $("ollamaCopyBtn"),
 
   voltarisChatLog: $("voltarisChatLog"),
   voltarisInput: $("voltarisInput"),
@@ -1206,6 +1205,79 @@ function extractVoltarisActions(text) {
         .trim()
     : raw;
   return { actions, cleanedText: cleaned };
+}
+
+function inferVoltarisActionsFromText(text) {
+  const raw = String(text ?? "").trim();
+  if (!raw) return [];
+  const lower = raw.toLowerCase();
+  const actions = [];
+
+  const removeHabitMatch = raw.match(/(?:remove|delete)\\s+(?:habit|task)\\s+(.+)/i);
+  if (removeHabitMatch?.[1]) {
+    actions.push({ type: "remove_task", title: removeHabitMatch[1].trim() });
+  }
+
+  const addHabitMatch = raw.match(/(?:add|create)\\s+(?:habit|task)\\s+(.+)/i);
+  if (addHabitMatch?.[1]) {
+    actions.push({ type: "add_task", title: addHabitMatch[1].trim() });
+  }
+
+  const removeAntiMatch = raw.match(/(?:remove|delete)\\s+(?:anti[- ]habit)\\s+(.+)/i);
+  if (removeAntiMatch?.[1]) {
+    actions.push({ type: "remove_anti_habit", title: removeAntiMatch[1].trim() });
+  }
+
+  const addAntiMatch = raw.match(/(?:add|create)\\s+(?:anti[- ]habit)\\s+(.+)/i);
+  if (addAntiMatch?.[1]) {
+    actions.push({ type: "add_anti_habit", title: addAntiMatch[1].trim() });
+  }
+
+  const setGoalMatch = raw.match(/set\\s+goal\\s+(study|earnings|sleep)\\s*(?:to)?\\s*([\\d.]+)/i);
+  if (setGoalMatch) {
+    const goalKey = setGoalMatch[1].toLowerCase();
+    const value = safeNumber(setGoalMatch[2]);
+    const goalMap = { study: "studyDaily", earnings: "earningsDaily", sleep: "sleepDaily" };
+    actions.push({ type: "set_goal", goal: goalMap[goalKey], value });
+  }
+
+  const mitMatch = raw.match(/(?:set\\s+mit|mit\\s*[:\\-])\\s*(.+)/i);
+  if (mitMatch?.[1]) {
+    actions.push({ type: "set_mit", text: mitMatch[1].trim() });
+  }
+
+  const markMatch = raw.match(/mark\\s+(.+?)\\s+(?:as\\s+)?(done|complete|completed|not done|undone|incomplete)/i);
+  if (markMatch?.[1]) {
+    const done = !/not done|undone|incomplete/i.test(markMatch[2] ?? "");
+    actions.push({ type: "toggle_task", title: markMatch[1].trim(), done });
+  }
+
+  const studyMatch = lower.match(/(?:log|set)\\s+study\\s+([\\d.]+)/i);
+  if (studyMatch?.[1]) {
+    actions.push({ type: "set_day", studyHours: safeNumber(studyMatch[1]) });
+  }
+
+  const earningsMatch = lower.match(/(?:log|set)\\s+earnings?\\s+([\\d.]+)/i);
+  if (earningsMatch?.[1]) {
+    actions.push({ type: "set_day", earnings: safeNumber(earningsMatch[1]) });
+  }
+
+  const moodMatch = lower.match(/(?:log|set)\\s+mood\\s+([0-5])/i);
+  if (moodMatch?.[1]) {
+    actions.push({ type: "set_day", mood: safeNumber(moodMatch[1]) });
+  }
+
+  const energyMatch = lower.match(/(?:log|set)\\s+energy\\s+([0-5])/i);
+  if (energyMatch?.[1]) {
+    actions.push({ type: "set_day", energy: safeNumber(energyMatch[1]) });
+  }
+
+  const sleepMatch = lower.match(/(?:log|set)\\s+sleep\\s+([\\d.]+)/i);
+  if (sleepMatch?.[1]) {
+    actions.push({ type: "set_day", sleep: safeNumber(sleepMatch[1]) });
+  }
+
+  return actions.map(parseVoltarisActionPayload).filter(Boolean);
 }
 
 function normalizeVoltarisMemoryItem(entry) {
@@ -6274,11 +6346,17 @@ async function sendVoltarisMessage(text) {
   const content = String(text ?? "").trim();
   if (!content) return;
   voltarisPushMessage("user", content, { render: false });
+  const inferredActions = inferVoltarisActionsFromText(content);
 
   if (uiState.voltarisAiEnabled) {
     await checkVoltarisServer({ force: false });
     if (voltarisServerStatus.state !== "online") {
-      voltarisPushMessage("ai", "AI is offline. Check the server and try again.");
+      if (inferredActions.length) {
+        addVoltarisActions(inferredActions);
+        voltarisPushMessage("ai", `AI is offline, but I queued ${inferredActions.length} action${inferredActions.length === 1 ? "" : "s"} in Pending actions.`);
+      } else {
+        voltarisPushMessage("ai", "AI is offline. Check the server and try again.");
+      }
       return;
     }
     const placeholder = voltarisPushMessage("ai", "Thinking...", { render: true });
@@ -6294,6 +6372,9 @@ async function sendVoltarisMessage(text) {
       if (actions.length) {
         addVoltarisActions(actions);
         voltarisPushMessage("ai", `I queued ${actions.length} action${actions.length === 1 ? "" : "s"} in Pending actions.`);
+      } else if (inferredActions.length) {
+        addVoltarisActions(inferredActions);
+        voltarisPushMessage("ai", `I queued ${inferredActions.length} action${inferredActions.length === 1 ? "" : "s"} in Pending actions.`);
       }
       if (uiState.voltarisAutoMemory) {
         await extractMemoryFromText(finalText);
@@ -6313,7 +6394,12 @@ async function sendVoltarisMessage(text) {
   if (voltaris.flow.step !== "idle") {
     voltarisHandleFlowInput(content);
   } else {
-    voltarisHandleIdleInput(content);
+    if (inferredActions.length) {
+      addVoltarisActions(inferredActions);
+      voltarisPushMessage("ai", `I queued ${inferredActions.length} action${inferredActions.length === 1 ? "" : "s"} in Pending actions.`);
+    } else {
+      voltarisHandleIdleInput(content);
+    }
   }
   renderVoltaris();
 }
@@ -8772,22 +8858,6 @@ function bindEvents() {
     saveUiState(uiState);
   });
 
-  el.ollamaCopyBtn?.addEventListener("click", async () => {
-    const steps = [
-      "Install Ollama: https://ollama.com",
-      "Run: ollama run llama3.1",
-      "Set in server/.env:",
-      "AI_PROVIDER=ollama",
-      "OLLAMA_MODEL=llama3.1",
-      "Restart: npm start (inside server folder)",
-    ].join("\n");
-    try {
-      await navigator.clipboard.writeText(steps);
-      alert("Ollama setup steps copied.");
-    } catch {
-      alert("Copy failed. The steps are shown inside the Voltaris card.");
-    }
-  });
 
   el.voltarisDockBtn?.addEventListener("click", () => setVoltarisDockOpen(true));
   el.voltarisDockCloseBtn?.addEventListener("click", () => setVoltarisDockOpen(false));
