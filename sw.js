@@ -57,8 +57,16 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       }).catch(() => {
-        // Network failed, return cached or offline fallback
-        return cached;
+        // Network failed, return cached if available
+        if (cached) {
+          return cached;
+        }
+        // Return offline error response when both network and cache fail
+        return new Response('Offline - content not available', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'text/plain' }
+        });
       });
       
       return cached || fetched;
