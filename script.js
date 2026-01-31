@@ -609,6 +609,9 @@ const el = {
   voltarisPendingList: $("voltarisPendingList"),
   voltarisPendingMeta: $("voltarisPendingMeta"),
   voltarisAddPendingBtn: $("voltarisAddPendingBtn"),
+  voltarisActionList: $("voltarisActionList"),
+  voltarisActionMeta: $("voltarisActionMeta"),
+  voltarisApplyActionsBtn: $("voltarisApplyActionsBtn"),
   voltarisApiInput: $("voltarisApiInput"),
   voltarisCheckBtn: $("voltarisCheckBtn"),
   voltarisStatus: $("voltarisStatus"),
@@ -1028,8 +1031,31 @@ function normalizeFriends(entries) {
 
 const VOLTARIS_MAX_MESSAGES = 80;
 const VOLTARIS_MAX_PENDING = 12;
+const VOLTARIS_MAX_ACTIONS = 12;
 const VOLTARIS_MAX_MEMORY = 40;
 const VOLTARIS_MAX_PLANS = 12;
+
+const VOLTARIS_ACTION_ALIASES = {
+  add_habit: "add_task",
+  remove_habit: "remove_task",
+  delete_habit: "remove_task",
+  add_antihabit: "add_anti_habit",
+  remove_antihabit: "remove_anti_habit",
+  delete_antihabit: "remove_anti_habit",
+};
+
+const VOLTARIS_ACTION_TYPES = new Set([
+  "add_task",
+  "remove_task",
+  "add_anti_habit",
+  "remove_anti_habit",
+  "set_goal",
+  "set_day",
+  "toggle_task",
+  "set_mit",
+  "add_objective",
+  "remove_objective",
+]);
 const VOLTARIS_STEPS = [
   "idle",
   "ask_title",
@@ -1109,6 +1135,77 @@ function normalizeVoltarisPendingTasks(list) {
     .map((entry) => normalizeVoltarisPendingTask(entry))
     .filter(Boolean)
     .slice(0, VOLTARIS_MAX_PENDING);
+}
+
+function normalizeVoltarisAction(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const action = entry.action && typeof entry.action === "object" ? entry.action : null;
+  if (!action || typeof action.type !== "string") return null;
+  return {
+    id: typeof entry.id === "string" && entry.id ? entry.id : crypto.randomUUID(),
+    action,
+    createdAt: safeNumber(entry.createdAt ?? Date.now()),
+  };
+}
+
+function normalizeVoltarisActions(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((entry) => normalizeVoltarisAction(entry))
+    .filter(Boolean)
+    .slice(0, VOLTARIS_MAX_ACTIONS);
+}
+
+function normalizeVoltarisActionType(rawType) {
+  if (!rawType) return "";
+  const key = String(rawType).trim().toLowerCase();
+  return VOLTARIS_ACTION_ALIASES[key] || key;
+}
+
+function parseVoltarisActionPayload(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const type = normalizeVoltarisActionType(raw.type);
+  if (!VOLTARIS_ACTION_TYPES.has(type)) return null;
+  return { ...raw, type };
+}
+
+function extractVoltarisActionBlocks(text, fence) {
+  const regex = new RegExp(`\\\\\`\`\`${fence}\\\\s*([\\\\s\\\\S]*?)\\\\\`\`\``, "gi");
+  const blocks = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match[1]) blocks.push(match[1]);
+  }
+  return blocks;
+}
+
+function extractVoltarisActions(text) {
+  const raw = String(text ?? "");
+  const actions = [];
+  const actionBlocks = extractVoltarisActionBlocks(raw, "actions");
+  const jsonBlocks = extractVoltarisActionBlocks(raw, "json");
+  const blocks = actionBlocks.length ? actionBlocks : jsonBlocks;
+
+  for (const block of blocks) {
+    try {
+      const parsed = JSON.parse(block.trim());
+      const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.actions) ? parsed.actions : [];
+      for (const item of list) {
+        const action = parseVoltarisActionPayload(item);
+        if (action) actions.push(action);
+      }
+    } catch {
+      // ignore malformed blocks
+    }
+  }
+
+  const cleaned = actions.length
+    ? raw
+        .replace(/```actions[\\s\\S]*?```/gi, "")
+        .replace(/```json[\\s\\S]*?```/gi, "")
+        .trim()
+    : raw;
+  return { actions, cleanedText: cleaned };
 }
 
 function normalizeVoltarisMemoryItem(entry) {
@@ -1210,6 +1307,7 @@ function defaultVoltarisState() {
       },
     ],
     pendingTasks: [],
+    pendingActions: [],
     memory: [],
     checkins: {},
     plans: [],
@@ -1222,6 +1320,7 @@ function normalizeVoltarisState(raw) {
   if (!raw || typeof raw !== "object") return defaultVoltarisState();
   const messages = normalizeVoltarisMessages(raw.messages);
   const pendingTasks = normalizeVoltarisPendingTasks(raw.pendingTasks);
+  const pendingActions = normalizeVoltarisActions(raw.pendingActions);
   const memory = normalizeVoltarisMemory(raw.memory);
   const checkins = normalizeVoltarisCheckins(raw.checkins);
   const plans = normalizeVoltarisPlans(raw.plans);
@@ -1229,6 +1328,7 @@ function normalizeVoltarisState(raw) {
   const normalized = {
     messages: messages.length ? messages : defaultVoltarisState().messages,
     pendingTasks,
+    pendingActions,
     memory,
     checkins,
     plans,
@@ -6157,8 +6257,8 @@ async function callVoltarisAI(message, options = {}) {
     body: JSON.stringify({
       message,
       history,
-    context,
-  }),
+      context,
+    }),
   });
 
   if (!response.ok) {
@@ -6184,13 +6284,19 @@ async function sendVoltarisMessage(text) {
     const placeholder = voltarisPushMessage("ai", "Thinking...", { render: true });
     try {
       const reply = await callVoltarisAI(content);
+      const { actions, cleanedText } = extractVoltarisActions(reply);
+      const finalText = cleanedText || reply;
       if (placeholder) {
-        voltarisUpdateMessage(placeholder.id, reply);
+        voltarisUpdateMessage(placeholder.id, finalText);
       } else {
-        voltarisPushMessage("ai", reply);
+        voltarisPushMessage("ai", finalText);
+      }
+      if (actions.length) {
+        addVoltarisActions(actions);
+        voltarisPushMessage("ai", `I queued ${actions.length} action${actions.length === 1 ? "" : "s"} in Pending actions.`);
       }
       if (uiState.voltarisAutoMemory) {
-        await extractMemoryFromText(reply);
+        await extractMemoryFromText(finalText);
       }
     } catch (error) {
       const msg = error?.message || "Voltaris AI failed to respond.";
@@ -6314,6 +6420,267 @@ function renderVoltarisPending(voltaris) {
     item.appendChild(hint);
     el.voltarisPendingList.appendChild(item);
   }
+}
+
+function actionToSummary(action) {
+  if (!action || typeof action !== "object") return "Unknown action";
+  switch (action.type) {
+    case "add_task":
+      return `Add habit: ${action.title ?? "Untitled"}`;
+    case "remove_task":
+      return `Remove habit: ${action.title ?? action.id ?? "Unknown"}`;
+    case "add_anti_habit":
+      return `Add anti-habit: ${action.title ?? "Untitled"}`;
+    case "remove_anti_habit":
+      return `Remove anti-habit: ${action.title ?? action.id ?? "Unknown"}`;
+    case "set_goal":
+      return `Set goal: ${action.goal ?? "goal"} → ${action.value ?? "?"}`;
+    case "set_day":
+      return `Update day: ${action.date ?? toISODate(activeDate)}`;
+    case "toggle_task":
+      return `Mark habit: ${action.title ?? action.id ?? "Unknown"} → ${action.done ? "done" : "not done"}`;
+    case "set_mit":
+      return `Set MIT: ${action.text ?? ""}`.trim();
+    case "add_objective":
+      return `Add objective: ${action.text ?? "Untitled"}`;
+    case "remove_objective":
+      return `Remove objective: ${action.text ?? action.id ?? "Unknown"}`;
+    default:
+      return `Action: ${action.type}`;
+  }
+}
+
+function addVoltarisActions(actions) {
+  if (!Array.isArray(actions) || actions.length === 0) return;
+  const voltaris = getVoltarisState();
+  voltaris.pendingActions = normalizeVoltarisActions([
+    ...actions.map((action) => ({
+      id: crypto.randomUUID(),
+      action,
+      createdAt: Date.now(),
+    })),
+    ...(voltaris.pendingActions ?? []),
+  ]);
+  voltarisSave({ render: true });
+}
+
+function renderVoltarisActions(voltaris) {
+  if (!el.voltarisActionList || !el.voltarisActionMeta) return;
+  const pending = Array.isArray(voltaris.pendingActions) ? voltaris.pendingActions : [];
+  el.voltarisActionList.innerHTML = "";
+
+  if (el.voltarisApplyActionsBtn) {
+    el.voltarisApplyActionsBtn.disabled = pending.length === 0;
+  }
+
+  if (pending.length === 0) {
+    el.voltarisActionMeta.textContent = "No pending actions";
+    const empty = document.createElement("div");
+    empty.className = "emptyState";
+    empty.textContent = "Voltaris will list data changes here for your approval.";
+    el.voltarisActionList.appendChild(empty);
+    return;
+  }
+
+  el.voltarisActionMeta.textContent = `${pending.length} pending action${pending.length === 1 ? "" : "s"}`;
+
+  for (const entry of pending) {
+    const action = entry.action;
+    const item = document.createElement("div");
+    item.className = "actionItem";
+
+    const info = document.createElement("div");
+    info.className = "actionInfo";
+
+    const title = document.createElement("div");
+    title.className = "actionTitle";
+    title.textContent = actionToSummary(action);
+
+    const meta = document.createElement("div");
+    meta.className = "actionMeta";
+    meta.textContent = action?.type ?? "action";
+
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "backupActions";
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "smallBtn";
+    removeBtn.type = "button";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => {
+      const voltarisState = getVoltarisState();
+      voltarisState.pendingActions = (voltarisState.pendingActions ?? []).filter((a) => a.id !== entry.id);
+      voltarisSave({ render: true });
+    });
+
+    actions.appendChild(removeBtn);
+    item.appendChild(info);
+    item.appendChild(actions);
+    el.voltarisActionList.appendChild(item);
+  }
+}
+
+function findTaskByTitle(title) {
+  if (!title) return null;
+  const target = String(title).trim().toLowerCase();
+  return (state.tasks ?? []).find((task) => task.title.trim().toLowerCase() === target) ?? null;
+}
+
+function findAntiHabitByTitle(title) {
+  if (!title) return null;
+  const target = String(title).trim().toLowerCase();
+  return (state.antiHabits ?? []).find((habit) => habit.title.trim().toLowerCase() === target) ?? null;
+}
+
+function findObjectiveByText(text) {
+  if (!text) return null;
+  const target = String(text).trim().toLowerCase();
+  return (state.objectives ?? []).find((obj) => obj.text.trim().toLowerCase() === target) ?? null;
+}
+
+function applyVoltarisAction(action) {
+  switch (action.type) {
+    case "add_task": {
+      const title = String(action.title ?? "").trim();
+      if (!title) return { ok: false, message: "Missing habit title." };
+      const task = normalizeTask({
+        title,
+        desc: action.desc ?? "",
+        category: action.category ?? "",
+        weight: action.weight ?? 1,
+        timeBlock: action.timeBlock ?? "any",
+        scheduleDays: action.scheduleDays,
+        startDate: action.startDate ?? toISODate(activeDate),
+      });
+      state.tasks.unshift(task);
+      return { ok: true, message: `Added habit "${task.title}".` };
+    }
+    case "remove_task": {
+      const task = action.id
+        ? (state.tasks ?? []).find((t) => t.id === action.id)
+        : findTaskByTitle(action.title);
+      if (!task) return { ok: false, message: "Habit not found." };
+      state.tasks = (state.tasks ?? []).filter((t) => t.id !== task.id);
+      for (const rec of Object.values(state.days)) {
+        if (rec?.tasks) delete rec.tasks[task.id];
+      }
+      return { ok: true, message: `Removed habit "${task.title}".` };
+    }
+    case "add_anti_habit": {
+      const title = String(action.title ?? "").trim();
+      if (!title) return { ok: false, message: "Missing anti-habit title." };
+      const habit = normalizeAntiHabit({ title, desc: action.desc ?? "" });
+      state.antiHabits.unshift(habit);
+      return { ok: true, message: `Added anti-habit "${habit.title}".` };
+    }
+    case "remove_anti_habit": {
+      const habit = action.id
+        ? (state.antiHabits ?? []).find((h) => h.id === action.id)
+        : findAntiHabitByTitle(action.title);
+      if (!habit) return { ok: false, message: "Anti-habit not found." };
+      state.antiHabits = (state.antiHabits ?? []).filter((h) => h.id !== habit.id);
+      for (const rec of Object.values(state.days)) {
+        if (rec?.antiHabits) delete rec.antiHabits[habit.id];
+      }
+      return { ok: true, message: `Removed anti-habit "${habit.title}".` };
+    }
+    case "set_goal": {
+      const goal = String(action.goal ?? "");
+      if (!["studyDaily", "earningsDaily", "sleepDaily"].includes(goal)) {
+        return { ok: false, message: "Unknown goal." };
+      }
+      state.goals = state.goals ?? { studyDaily: 0, earningsDaily: 0, sleepDaily: 8 };
+      state.goals[goal] = Math.max(0, safeNumber(action.value));
+      return { ok: true, message: `Updated goal "${goal}".` };
+    }
+    case "set_day": {
+      const iso = isIsoDate(action.date) ? action.date : toISODate(activeDate);
+      const rec = getDayRecord(iso);
+      if (Number.isFinite(Number(action.studyHours))) rec.studyHours = safeNumber(action.studyHours);
+      if (Number.isFinite(Number(action.earnings))) rec.earnings = safeNumber(action.earnings);
+      if (Number.isFinite(Number(action.mood))) rec.checkin.mood = clamp(safeNumber(action.mood), 0, 5);
+      if (Number.isFinite(Number(action.energy))) rec.checkin.energy = clamp(safeNumber(action.energy), 0, 5);
+      if (Number.isFinite(Number(action.sleep))) rec.checkin.sleep = clamp(safeNumber(action.sleep), 0, 24);
+      if (typeof action.intention === "string") rec.intention = action.intention;
+      if (typeof action.lessonLearned === "string") rec.lessonLearned = action.lessonLearned;
+      if (typeof action.wins === "string") rec.notes.wins = action.wins;
+      if (typeof action.lessons === "string") rec.notes.lessons = action.lessons;
+      if (typeof action.tomorrow === "string") rec.notes.tomorrow = action.tomorrow;
+      if (typeof action.learned === "string") rec.notes.learned = action.learned;
+      if (typeof action.plan === "string") rec.notes.plan = action.plan;
+      rec.notesUpdatedAt = Date.now();
+      return { ok: true, message: `Updated day ${iso}.` };
+    }
+    case "toggle_task": {
+      const iso = isIsoDate(action.date) ? action.date : toISODate(activeDate);
+      const rec = getDayRecord(iso);
+      const task = action.id
+        ? (state.tasks ?? []).find((t) => t.id === action.id)
+        : findTaskByTitle(action.title);
+      if (!task) return { ok: false, message: "Habit not found." };
+      const next = typeof action.done === "boolean" ? action.done : !rec.tasks?.[task.id];
+      rec.tasks[task.id] = Boolean(next);
+      return { ok: true, message: `Marked "${task.title}" as ${next ? "done" : "not done"}.` };
+    }
+    case "set_mit": {
+      const iso = toISODate(activeDate);
+      const rec = getDayRecord(iso);
+      const text = String(action.text ?? "").trim();
+      if (!text) return { ok: false, message: "Missing MIT text." };
+      rec.mit.text = text;
+      rec.mit.done = typeof action.done === "boolean" ? action.done : false;
+      return { ok: true, message: "MIT updated." };
+    }
+    case "add_objective": {
+      const text = String(action.text ?? "").trim();
+      if (!text) return { ok: false, message: "Missing objective text." };
+      state.objectives.unshift({
+        id: crypto.randomUUID(),
+        text,
+        done: false,
+        deadline: typeof action.deadline === "string" ? action.deadline : "",
+      });
+      return { ok: true, message: "Objective added." };
+    }
+    case "remove_objective": {
+      const obj = action.id
+        ? (state.objectives ?? []).find((o) => o.id === action.id)
+        : findObjectiveByText(action.text);
+      if (!obj) return { ok: false, message: "Objective not found." };
+      state.objectives = (state.objectives ?? []).filter((o) => o.id !== obj.id);
+      return { ok: true, message: "Objective removed." };
+    }
+    default:
+      return { ok: false, message: "Unsupported action." };
+  }
+}
+
+function applyVoltarisActions() {
+  const voltaris = getVoltarisState();
+  const pending = Array.isArray(voltaris.pendingActions) ? voltaris.pendingActions : [];
+  if (pending.length === 0) return;
+  const ok = confirm(`Apply ${pending.length} action${pending.length === 1 ? "" : "s"}?`);
+  if (!ok) return;
+
+  const results = [];
+  for (const entry of pending) {
+    const outcome = applyVoltarisAction(entry.action);
+    results.push(outcome);
+  }
+
+  voltaris.pendingActions = [];
+  saveState(state);
+  voltarisSave({ render: true });
+  normalizeAllDaysToTasks();
+  render();
+
+  const successCount = results.filter((r) => r.ok).length;
+  const failCount = results.length - successCount;
+  const summary = `Applied ${successCount} action${successCount === 1 ? "" : "s"}${failCount ? `, ${failCount} failed` : ""}.`;
+  voltarisPushMessage("ai", summary);
 }
 
 function getVoltarisCheckin(iso) {
@@ -6739,6 +7106,7 @@ function renderVoltaris() {
   renderVoltarisMessages(voltaris);
   renderVoltarisDock(voltaris);
   renderVoltarisPending(voltaris);
+  renderVoltarisActions(voltaris);
   renderVoltarisCheckin(voltaris);
   renderVoltarisPlans(voltaris);
   renderVoltarisMemory(voltaris);
@@ -8375,6 +8743,7 @@ function bindEvents() {
     saveUiState(uiState);
   });
   el.voltarisAddPendingBtn?.addEventListener("click", () => voltarisApplyPendingTasks());
+  el.voltarisApplyActionsBtn?.addEventListener("click", () => applyVoltarisActions());
   el.voltarisApiInput?.addEventListener("change", () => {
     uiState.voltarisApiUrl = el.voltarisApiInput.value.trim();
     saveUiState(uiState);

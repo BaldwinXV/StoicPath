@@ -1423,6 +1423,35 @@ button.item{ font: inherit; }
   align-items:center;
   gap:8px;
 }
+
+.actionItem{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background: rgba(255,255,255,0.03);
+}
+.actionInfo{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.actionTitle{
+  font-weight:600;
+}
+.actionMeta{
+  font-size:12px;
+  color:var(--muted);
+}
+.actionBadge{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.12em;
+  color:var(--muted2);
+}
 .voltarisDock{
   position: fixed;
   right: 18px;
