@@ -624,6 +624,10 @@ const el = {
   voltarisDockRoutineBtn: $("voltarisDockRoutineBtn"),
   voltarisDockMemoryBtn: $("voltarisDockMemoryBtn"),
   voltarisDockStatus: $("voltarisDockStatus"),
+  voltarisDockAnalyzeBtn: $("voltarisDockAnalyzeBtn"),
+  voltarisDockOptimizeBtn: $("voltarisDockOptimizeBtn"),
+  voltarisAutopilotToggle: $("voltarisAutopilotToggle"),
+  voltarisAutopilotStatus: $("voltarisAutopilotStatus"),
   voltarisCheckinFocus: $("voltarisCheckinFocus"),
   voltarisCheckinObstacle: $("voltarisCheckinObstacle"),
   voltarisCheckinWin: $("voltarisCheckinWin"),
@@ -1480,6 +1484,7 @@ if (!Array.isArray(uiState.reminderDays)) uiState.reminderDays = [1, 2, 3, 4, 5,
 if (!("voltarisAiEnabled" in uiState)) uiState.voltarisAiEnabled = false;
 if (!("voltarisContextEnabled" in uiState)) uiState.voltarisContextEnabled = false;
 if (!("voltarisAutoMemory" in uiState)) uiState.voltarisAutoMemory = false;
+if (!("voltarisAutopilot" in uiState)) uiState.voltarisAutopilot = false;
 if (!("voltarisApiUrl" in uiState)) uiState.voltarisApiUrl = "http://localhost:8787/api/voltaris";
 if (!("perfectRange" in uiState)) uiState.perfectRange = 7;
 if (!("moneyRange" in uiState)) uiState.moneyRange = 30;
@@ -1492,6 +1497,7 @@ if (!("supabaseAutoSync" in uiState)) uiState.supabaseAutoSync = false;
 let activeDate = todayLocalDate();
 let activeNotesTab = "wins"; // wins | lessons | tomorrow
 let activeRange = "week"; // week | month | year
+let autopilotInterval = null;
 let activeRightTab = uiState.rightTab ?? "summary";
 let calendarMonth = new Date(todayLocalDate().getFullYear(), todayLocalDate().getMonth(), 1);
 
@@ -6551,6 +6557,163 @@ function createLocalWeeklyReview() {
   ].join("\\n");
 }
 
+// ============= AI CONTROL FUNCTIONS =============
+
+async function callVoltarisAIWithMode(message, mode) {
+  const apiUrl = uiState.voltarisApiUrl;
+  const context = uiState.voltarisContextEnabled ? buildVoltarisContext() : "";
+
+  const response = await fetch(apiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      history: [],
+      context,
+      mode,
+    }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data?.error || "Voltaris AI request failed");
+  }
+  const data = await response.json();
+  return data.reply || "";
+}
+
+async function analyzeDay() {
+  if (!uiState.voltarisAiEnabled) {
+    voltarisPushMessage("ai", "⚠️ Enable AI mode to use analysis features.");
+    return;
+  }
+
+  await checkVoltarisServer({ force: false });
+  if (voltarisServerStatus.state !== "online") {
+    voltarisPushMessage("ai", "⚠️ AI is offline. Check your server connection.");
+    return;
+  }
+
+  const placeholder = voltarisPushMessage("ai", "🔍 Analyzing your day...", { render: true });
+  try {
+    const reply = await callVoltarisAIWithMode(
+      "Analyze my current day's performance. What's working? What needs attention? What should I prioritize right now?",
+      "analyze"
+    );
+    if (placeholder) {
+      voltarisUpdateMessage(placeholder.id, "🔍 **Day Analysis**\n\n" + reply);
+    } else {
+      voltarisPushMessage("ai", "🔍 **Day Analysis**\n\n" + reply);
+    }
+    if (uiState.voltarisAutoMemory) await extractMemoryFromText(reply);
+  } catch (error) {
+    const msg = error?.message || "Analysis failed.";
+    if (placeholder) {
+      voltarisUpdateMessage(placeholder.id, "❌ " + msg);
+    } else {
+      voltarisPushMessage("ai", "❌ " + msg);
+    }
+  }
+}
+
+async function optimizeHabits() {
+  if (!uiState.voltarisAiEnabled) {
+    voltarisPushMessage("ai", "⚠️ Enable AI mode to use optimization features.");
+    return;
+  }
+
+  await checkVoltarisServer({ force: false });
+  if (voltarisServerStatus.state !== "online") {
+    voltarisPushMessage("ai", "⚠️ AI is offline. Check your server connection.");
+    return;
+  }
+
+  const placeholder = voltarisPushMessage("ai", "⚡ Optimizing your habit system...", { render: true });
+  try {
+    const reply = await callVoltarisAIWithMode(
+      "Analyze my habits and suggest optimizations. Which habits should I adjust, add, or remove for maximum progress?",
+      "optimize"
+    );
+    if (placeholder) {
+      voltarisUpdateMessage(placeholder.id, "⚡ **Habit Optimization**\n\n" + reply);
+    } else {
+      voltarisPushMessage("ai", "⚡ **Habit Optimization**\n\n" + reply);
+    }
+    if (uiState.voltarisAutoMemory) await extractMemoryFromText(reply);
+  } catch (error) {
+    const msg = error?.message || "Optimization failed.";
+    if (placeholder) {
+      voltarisUpdateMessage(placeholder.id, "❌ " + msg);
+    } else {
+      voltarisPushMessage("ai", "❌ " + msg);
+    }
+  }
+}
+
+async function runAutopilotCheck() {
+  if (!uiState.voltarisAutopilot || !uiState.voltarisAiEnabled) return;
+
+  await checkVoltarisServer({ force: false });
+  if (voltarisServerStatus.state !== "online") return;
+
+  try {
+    const reply = await callVoltarisAIWithMode(
+      "Quick status check. Based on my current context, what's the ONE most important thing I should do right now? Be direct and commanding.",
+      "autopilot"
+    );
+    voltarisPushMessage("ai", "🤖 **Autopilot Directive**\n\n" + reply);
+  } catch {
+    // Silent fail for autopilot background checks
+  }
+}
+
+function startAutopilot() {
+  if (autopilotInterval) clearInterval(autopilotInterval);
+  uiState.voltarisAutopilot = true;
+  saveUiState(uiState);
+  updateAutopilotUI();
+  
+  // Run immediately
+  runAutopilotCheck();
+  
+  // Then run every 30 minutes
+  autopilotInterval = setInterval(runAutopilotCheck, 30 * 60 * 1000);
+  
+  voltarisPushMessage("ai", "🤖 **Autopilot Activated**\n\nI'm now in control. I'll monitor your progress and provide directives every 30 minutes.\n\n**Trust the process.**");
+}
+
+function stopAutopilot() {
+  if (autopilotInterval) {
+    clearInterval(autopilotInterval);
+    autopilotInterval = null;
+  }
+  uiState.voltarisAutopilot = false;
+  saveUiState(uiState);
+  updateAutopilotUI();
+  
+  voltarisPushMessage("ai", "🛑 Autopilot deactivated. You're back in manual control.");
+}
+
+function toggleAutopilot() {
+  if (uiState.voltarisAutopilot) {
+    stopAutopilot();
+  } else {
+    startAutopilot();
+  }
+}
+
+function updateAutopilotUI() {
+  if (el.voltarisAutopilotToggle) {
+    el.voltarisAutopilotToggle.checked = uiState.voltarisAutopilot;
+  }
+  if (el.voltarisAutopilotStatus) {
+    el.voltarisAutopilotStatus.textContent = uiState.voltarisAutopilot ? "Active" : "Disabled";
+    el.voltarisAutopilotStatus.classList.toggle("is-active", uiState.voltarisAutopilot);
+  }
+}
+
+// ============= END AI CONTROL FUNCTIONS =============
+
 async function generateDailyCoach() {
   if (uiState.voltarisAiEnabled) {
     await checkVoltarisServer({ force: false });
@@ -6742,6 +6905,7 @@ function renderVoltaris() {
   renderVoltarisCheckin(voltaris);
   renderVoltarisPlans(voltaris);
   renderVoltarisMemory(voltaris);
+  updateAutopilotUI();
 }
 
 function renderVoltarisDock(voltaris) {
@@ -7852,7 +8016,13 @@ function render() {
   applyFlowMode();
   maybeAutoBackup();
   renderBackups();
-  checkVoltarisServer({ force: false }).then(() => renderVoltaris());
+  checkVoltarisServer({ force: false }).then(() => {
+    renderVoltaris();
+    // Restore autopilot if it was enabled
+    if (uiState.voltarisAutopilot && uiState.voltarisAiEnabled) {
+      autopilotInterval = setInterval(runAutopilotCheck, 30 * 60 * 1000);
+    }
+  });
 }
 
 function escapeCsv(v) {
@@ -8431,6 +8601,9 @@ function bindEvents() {
   });
   el.voltarisDockCoachBtn?.addEventListener("click", () => generateDailyCoach());
   el.voltarisDockRoutineBtn?.addEventListener("click", () => voltarisSuggestRoutine());
+  el.voltarisDockAnalyzeBtn?.addEventListener("click", () => analyzeDay());
+  el.voltarisDockOptimizeBtn?.addEventListener("click", () => optimizeHabits());
+  el.voltarisAutopilotToggle?.addEventListener("change", () => toggleAutopilot());
   el.voltarisDockMemoryBtn?.addEventListener("click", () => {
     const last = getLastVoltarisAiMessageText();
     if (!last) {

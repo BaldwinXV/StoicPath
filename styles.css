@@ -1503,6 +1503,32 @@ button.item{ font: inherit; }
 .voltarisDock .voltarisChatLog{
   max-height: 220px;
 }
+.voltarisAutopilot{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(95, 227, 192, 0.1);
+  border: 1px solid rgba(95, 227, 192, 0.3);
+  border-radius: 10px;
+}
+.voltarisAutopilot__status{
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.voltarisAutopilot__status.is-active{
+  color: var(--accent);
+}
+.btn--primary{
+  background: linear-gradient(135deg, rgba(95,227,192,0.9), rgba(139,208,255,0.9));
+  color: #0d1117;
+  font-weight: 700;
+  border-color: transparent;
+}
+.btn--primary:hover{
+  background: linear-gradient(135deg, rgba(95,227,192,1), rgba(139,208,255,1));
+}
 .checkLabel{
   display:flex;
   align-items:center;

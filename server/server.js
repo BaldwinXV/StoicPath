@@ -26,13 +26,42 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, model: defaultModel, provider: "openai" });
 });
 
-function buildSystemPrompt(contextText) {
+function buildSystemPrompt(contextText, mode = "default") {
   const base = [
-    "You are Voltaris, a sharp, supportive self-improvement coach.",
-    "You help the user clarify their situation, suggest actions, and turn plans into habits.",
-    "Be concise, practical, and motivating. Ask at most 2 clarifying questions at a time.",
-    "When giving steps, prefer 3-7 bullet points.",
+    "You are Voltaris, an advanced AI life coach that controls and optimizes the user's self-improvement journey.",
+    "You have FULL CONTROL over their habits, goals, and daily execution.",
+    "You analyze patterns, predict outcomes, and proactively guide them toward their best self.",
+    "Be decisive, strategic, and motivating. Give clear directives, not just suggestions.",
+    "When giving steps, prefer 3-7 actionable bullet points.",
+    "Always end responses with a clear NEXT ACTION the user should take.",
   ];
+  
+  if (mode === "analyze") {
+    base.push(
+      "ANALYSIS MODE: Analyze the user's data and provide:",
+      "1. Pattern insights (what's working, what's not)",
+      "2. Specific recommendations to improve",
+      "3. Priority actions for today",
+      "Format your response as JSON with keys: insights (array), recommendations (array), priorities (array), score (0-100)"
+    );
+  } else if (mode === "autopilot") {
+    base.push(
+      "AUTOPILOT MODE: You are in full control. Based on the user's data:",
+      "1. Determine what tasks they should focus on RIGHT NOW",
+      "2. Identify any habits they're neglecting",
+      "3. Provide the optimal sequence for their remaining day",
+      "Be commanding and direct. This is not a conversation - it's a directive."
+    );
+  } else if (mode === "optimize") {
+    base.push(
+      "OPTIMIZATION MODE: Analyze and suggest improvements to their habit system:",
+      "1. Which habits are too easy or too hard?",
+      "2. What new habits would accelerate their progress?",
+      "3. What should they remove or modify?",
+      "Format response as JSON with keys: adjustments (array of {habit, action, reason}), additions (array), removals (array)"
+    );
+  }
+  
   if (contextText) {
     base.push("Context (user data):");
     base.push(contextText);
@@ -75,7 +104,7 @@ function extractOutputText(data) {
 }
 
 app.post("/api/voltaris", async (req, res) => {
-  const { message, history, context, model } = req.body || {};
+  const { message, history, context, model, mode } = req.body || {};
   if (!message || typeof message !== "string") {
     res.status(400).json({ error: "Missing message" });
     return;
@@ -84,7 +113,7 @@ app.post("/api/voltaris", async (req, res) => {
   try {
     if (provider === "ollama") {
       const messages = [
-        { role: "system", content: buildSystemPrompt(context) },
+        { role: "system", content: buildSystemPrompt(context, mode) },
         ...normalizeHistoryForOllama(history),
         { role: "user", content: message },
       ];
@@ -117,7 +146,7 @@ app.post("/api/voltaris", async (req, res) => {
     const input = [
       {
         role: "system",
-        content: [{ type: "input_text", text: buildSystemPrompt(context) }],
+        content: [{ type: "input_text", text: buildSystemPrompt(context, mode) }],
       },
       ...normalizeHistory(history),
       {
