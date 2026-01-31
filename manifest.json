@@ -1,0 +1,25 @@
+{
+  "name": "StoicPath - Self Improvement OS",
+  "short_name": "StoicPath",
+  "description": "A personal self-improvement dashboard with daily execution, XP leveling, streaks, projects, and reflection tools",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#070a12",
+  "theme_color": "#5fe3c0",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icons/icon-192.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["productivity", "lifestyle", "health"]
+}

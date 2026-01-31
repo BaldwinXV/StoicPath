@@ -3,10 +3,43 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Self Improvement Tracker</title>
+  <title>StoicPath - Self Improvement OS</title>
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="A personal self-improvement dashboard with daily execution, XP leveling, streaks, charts, projects, and reflection tools. Build habits, track progress, and level up your life." />
+  <meta name="keywords" content="self improvement, habit tracker, productivity, goal setting, daily routine, focus timer, streak tracker, XP leveling" />
+  <meta name="author" content="StoicPath" />
+  
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="StoicPath - Self Improvement OS" />
+  <meta property="og:description" content="A personal self-improvement dashboard with daily execution, XP leveling, streaks, charts, projects, and reflection tools." />
+  <meta property="og:image" content="https://baldwinxv.github.io/StoicPath/icons/icon-512.svg" />
+  <meta property="og:url" content="https://baldwinxv.github.io/StoicPath/" />
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="StoicPath - Self Improvement OS" />
+  <meta name="twitter:description" content="Build habits, track progress, and level up your life with this local-first self-improvement dashboard." />
+  
+  <!-- PWA / Mobile Support -->
+  <meta name="theme-color" content="#5fe3c0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="StoicPath" />
+  <link rel="apple-touch-icon" href="icons/icon-192.svg" />
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="icons/favicon.svg" />
+  
+  <!-- Manifest -->
+  <link rel="manifest" href="manifest.json" />
+  
+  <!-- Stylesheet -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
   <div class="bgStage" aria-hidden="true">
     <span class="bgStage__layer"></span>
     <span class="bgStage__layer"></span>
@@ -24,7 +57,7 @@
       <div class="brand">
         <div class="brand__mark" aria-hidden="true"></div>
         <div class="brand__text">
-          <div class="brand__title">Self Improvement</div>
+          <div class="brand__title">StoicPath</div>
           <div class="brand__subtitle" id="subtitle">Daily • Weekly • Monthly • Yearly</div>
           <div class="brand__mantra" id="mantraDisplay"></div>
         </div>
@@ -62,7 +95,7 @@
       </div>
     </header>
 
-    <main class="main">
+    <main class="main" id="main-content">
       <section class="panel panel--flow" id="flowPanel" aria-hidden="true">
         <div class="panel__header">
           <div class="panel__title">Daily Flow</div>
@@ -1725,5 +1758,20 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="script.js"></script>
+  
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((registration) => {
+            console.log('SW registered:', registration.scope);
+          })
+          .catch((error) => {
+            console.log('SW registration failed:', error);
+          });
+      });
+    }
+  </script>
 </body>
 </html>
