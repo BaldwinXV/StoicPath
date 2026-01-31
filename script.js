@@ -257,6 +257,53 @@ const LEVEL_CONFIG = {
   bonusPerLevel: 40,
 };
 
+const QUEST_CONFIG = {
+  dailyXp: 25,
+  weeklyXp: 80,
+};
+
+const DAILY_QUESTS = [
+  {
+    id: "mit_intention",
+    title: "Set MIT + intention",
+    goal: 1,
+    getProgress: (rec) => (rec.mit?.text?.trim() && rec.intention?.trim() ? 1 : 0),
+  },
+  {
+    id: "focus_45",
+    title: "Focus 45+ minutes",
+    goal: 45,
+    getProgress: (rec) => computeFocusMinutesForDay(rec),
+  },
+  {
+    id: "reflection",
+    title: "Write 2 reflections",
+    goal: 2,
+    getProgress: (rec) => computeNotesFilled(rec),
+  },
+];
+
+const WEEKLY_QUESTS = [
+  {
+    id: "perfect_3",
+    title: "3 perfect days",
+    goal: 3,
+    getProgress: (summary) => summary.perfectDays ?? 0,
+  },
+  {
+    id: "study_15",
+    title: "Study 15 hours",
+    goal: 15,
+    getProgress: (summary) => Math.round(summary.study ?? 0),
+  },
+  {
+    id: "earn_50",
+    title: "Earn 50 total",
+    goal: 50,
+    getProgress: (summary) => Math.round(summary.earnings ?? 0),
+  },
+];
+
 const $ = (id) => document.getElementById(id);
 
 const el = {
@@ -307,6 +354,16 @@ const el = {
   focusLaneLabel: $("focusLaneLabel"),
   focusLaneStartBtn: $("focusLaneStartBtn"),
   focusLaneChecklistBtn: $("focusLaneChecklistBtn"),
+  guidedFlowMeta: $("guidedFlowMeta"),
+  guidedMorningStatus: $("guidedMorningStatus"),
+  guidedMiddayStatus: $("guidedMiddayStatus"),
+  guidedNightStatus: $("guidedNightStatus"),
+  guidedFlowBar: $("guidedFlowBar"),
+  guidedFlowHint: $("guidedFlowHint"),
+  guidedMorningBtn: $("guidedMorningBtn"),
+  guidedMiddayBtn: $("guidedMiddayBtn"),
+  guidedNightBtn: $("guidedNightBtn"),
+  guidedOpenFlowBtn: $("guidedOpenFlowBtn"),
 
   datePill: $("datePill"),
   datePicker: $("datePicker"),
@@ -447,11 +504,26 @@ const el = {
   levelProgressBar: $("levelProgressBar"),
   levelProgressMeta: $("levelProgressMeta"),
   levelSourcesList: $("levelSourcesList"),
+  questBoardList: $("questBoardList"),
+  questBoardMeta: $("questBoardMeta"),
   perfectWeek: $("perfectWeek"),
   perfectMonth: $("perfectMonth"),
   perfectMonthLabel: $("perfectMonthLabel"),
   projectShowcaseMeta: $("projectShowcaseMeta"),
   projectShowcaseList: $("projectShowcaseList"),
+  weeklyDashLabel: $("weeklyDashLabel"),
+  weeklyDashCompletion: $("weeklyDashCompletion"),
+  weeklyDashTasks: $("weeklyDashTasks"),
+  weeklyDashPerfect: $("weeklyDashPerfect"),
+  weeklyDashPerfectMeta: $("weeklyDashPerfectMeta"),
+  weeklyDashFocus: $("weeklyDashFocus"),
+  weeklyDashDeepWork: $("weeklyDashDeepWork"),
+  weeklyDashStudy: $("weeklyDashStudy"),
+  weeklyDashEarnings: $("weeklyDashEarnings"),
+  perfectRangeSelect: $("perfectRangeSelect"),
+  moneyRangeSelect: $("moneyRangeSelect"),
+  perfectDaysMeta: $("perfectDaysMeta"),
+  moneyTrendMeta: $("moneyTrendMeta"),
 
   streakValue: $("streakValue"),
   levelValue: $("levelValue"),
@@ -501,6 +573,8 @@ const el = {
   chartCorrelationStudy: $("chartCorrelationStudy"),
   chartFinance: $("chartFinance"),
   chartTrend: $("chartTrend"),
+  chartPerfectDays: $("chartPerfectDays"),
+  chartMoneyTrend: $("chartMoneyTrend"),
   trendRangeSelect: $("trendRangeSelect"),
   trendMetricFilters: $("trendMetricFilters"),
   trendMeta: $("trendMeta"),
@@ -513,6 +587,14 @@ const el = {
   friendXpInput: $("friendXpInput"),
   addFriendBtn: $("addFriendBtn"),
   friendsList: $("friendsList"),
+  backupMeta: $("backupMeta"),
+  backupNowBtn: $("backupNowBtn"),
+  backupDownloadBtn: $("backupDownloadBtn"),
+  backupCopyBtn: $("backupCopyBtn"),
+  autoBackupToggle: $("autoBackupToggle"),
+  clearBackupsBtn: $("clearBackupsBtn"),
+  backupList: $("backupList"),
+  ollamaCopyBtn: $("ollamaCopyBtn"),
 
   voltarisChatLog: $("voltarisChatLog"),
   voltarisInput: $("voltarisInput"),
@@ -1204,6 +1286,19 @@ function normalizeAchievements(items) {
     }));
 }
 
+function normalizeBackups(items) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((item) => item && typeof item.data === "string")
+    .map((item) => ({
+      id: typeof item.id === "string" ? item.id : crypto.randomUUID(),
+      label: typeof item.label === "string" ? item.label : "Backup",
+      createdAt: safeNumber(item.createdAt ?? Date.now()),
+      data: item.data,
+    }))
+    .slice(0, 8);
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -1265,6 +1360,7 @@ function createDayRecord(tasks, antiHabits = []) {
     slips: [],
     checkin: { mood: 0, energy: 0, sleep: 0 },
     focusSessions: [],
+    bonusSources: [],
     dayClosedAt: 0,
   };
 }
@@ -1324,6 +1420,15 @@ function normalizeDayRecord(rec, tasks, antiHabits = []) {
   if (!Number.isFinite(Number(rec.checkin.sleep))) rec.checkin.sleep = 0;
 
   if (!Array.isArray(rec.focusSessions)) rec.focusSessions = [];
+  if (!Array.isArray(rec.bonusSources)) rec.bonusSources = [];
+  rec.bonusSources = rec.bonusSources
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => ({
+      label: typeof entry.label === "string" ? entry.label : "Bonus",
+      xp: Math.max(0, Math.round(safeNumber(entry.xp))),
+      ts: safeNumber(entry.ts ?? 0),
+    }))
+    .filter((entry) => entry.xp > 0);
   if (!Number.isFinite(Number(rec.dayClosedAt))) rec.dayClosedAt = 0;
   return rec;
 }
@@ -1352,6 +1457,8 @@ function initialState() {
     reminders: [],
     achievements: [],
     freezeUsed: [],
+    questClaims: {},
+    backups: [],
   };
 }
 
@@ -1374,6 +1481,9 @@ if (!("voltarisAiEnabled" in uiState)) uiState.voltarisAiEnabled = false;
 if (!("voltarisContextEnabled" in uiState)) uiState.voltarisContextEnabled = false;
 if (!("voltarisAutoMemory" in uiState)) uiState.voltarisAutoMemory = false;
 if (!("voltarisApiUrl" in uiState)) uiState.voltarisApiUrl = "http://localhost:8787/api/voltaris";
+if (!("perfectRange" in uiState)) uiState.perfectRange = 7;
+if (!("moneyRange" in uiState)) uiState.moneyRange = 30;
+if (!("autoBackup" in uiState)) uiState.autoBackup = true;
 if (!("supabaseUrl" in uiState)) uiState.supabaseUrl = "";
 if (!("supabaseKey" in uiState)) uiState.supabaseKey = "";
 if (!("supabaseAdminEmails" in uiState)) uiState.supabaseAdminEmails = "";
@@ -1391,6 +1501,8 @@ let chartCorrelationCompletionInstance = null;
 let chartCorrelationStudyInstance = null;
 let chartFinanceInstance = null;
 let chartTrendInstance = null;
+let chartPerfectDaysInstance = null;
+let chartMoneyTrendInstance = null;
 
 let focusTimer = {
   running: false,
@@ -2942,6 +3054,12 @@ function computeDayXpBreakdown(_dateObj, rec, dueTasks) {
   pushXpSource(sources, "Reach-outs", reachouts * XP_CONFIG.reachoutPerItem);
   if (socialChallengeDone) pushXpSource(sources, "Social challenge", XP_CONFIG.socialChallenge);
   if (safeNumber(rec.dayClosedAt) > 0) pushXpSource(sources, "End day review", XP_CONFIG.dayClosedBonus);
+  if (Array.isArray(rec.bonusSources)) {
+    for (const bonus of rec.bonusSources) {
+      if (!bonus) continue;
+      pushXpSource(sources, bonus.label || "Bonus", bonus.xp);
+    }
+  }
 
   const perfectDay = dueTasks.length > 0 && completion.done === dueTasks.length;
   if (perfectDay) pushXpSource(sources, "Perfect day bonus", XP_CONFIG.perfectDayBonus);
@@ -4914,6 +5032,8 @@ function renderCharts() {
     });
   }
 
+  renderPerfectDaysChart();
+  renderMoneyTrendChart();
   renderCorrelationCharts();
 }
 
@@ -5412,6 +5532,12 @@ function scheduleProgressRefresh(delay = 180) {
     renderSummary();
     refreshProgressionUI();
     renderLeaderboard();
+    renderWeeklyReview();
+    renderWeeklyDashboard();
+    renderGuidedFlow();
+    renderQuestBoard();
+    renderPerfectDays();
+    renderAchievements();
     renderAutoInsights();
     scheduleChartsRefresh();
     scheduleMultiplayerSync();
@@ -6932,6 +7058,518 @@ function renderPerfectDays() {
   }
 }
 
+function scrollToElement(id) {
+  const node = document.getElementById(id);
+  if (!node) return;
+  node.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (typeof node.focus === "function") node.focus({ preventScroll: true });
+}
+
+function renderGuidedFlow() {
+  if (!el.guidedFlowMeta) return;
+  const iso = toISODate(activeDate);
+  const rec = getDayRecord(iso);
+
+  const morningDone = Boolean(rec.mit?.text?.trim()) && Boolean(rec.intention?.trim());
+  const middayDone = safeNumber(rec.checkin?.mood) > 0
+    || safeNumber(rec.checkin?.energy) > 0
+    || computeFocusMinutesForDay(rec) > 0;
+  const nightDone = Boolean(
+    rec.notes?.wins?.trim()
+    || rec.notes?.lessons?.trim()
+    || rec.notes?.tomorrow?.trim()
+    || safeNumber(rec.dayClosedAt) > 0
+  );
+
+  const statuses = [
+    { done: morningDone, el: el.guidedMorningStatus, text: "Set MIT + intention" },
+    { done: middayDone, el: el.guidedMiddayStatus, text: "Log mood/energy or focus" },
+    { done: nightDone, el: el.guidedNightStatus, text: "Write wins or end day" },
+  ];
+
+  const doneCount = statuses.filter((s) => s.done).length;
+  el.guidedFlowMeta.textContent = `${doneCount}/3 complete`;
+  if (el.guidedFlowBar) el.guidedFlowBar.style.width = `${Math.round((doneCount / 3) * 100)}%`;
+  if (el.guidedFlowHint) {
+    el.guidedFlowHint.textContent = doneCount === 3
+      ? "Great job. You closed the loop today."
+      : "Follow the three anchors to finish the day.";
+  }
+
+  for (const status of statuses) {
+    if (!status.el) continue;
+    status.el.textContent = status.done ? "Complete" : status.text;
+    const step = status.el.closest(".guidedStep");
+    if (step) step.classList.toggle("is-done", status.done);
+  }
+}
+
+function computeTaskSlotTotals(start, end) {
+  let done = 0;
+  let total = 0;
+  const days = iterDatesInclusive(start, end);
+  for (const d of days) {
+    const iso = toISODate(d);
+    const rec = state.days[iso];
+    const dueTasks = getDueTasksForDate(d);
+    total += dueTasks.length;
+    for (const task of dueTasks) {
+      if (rec?.tasks?.[task.id] === true) done += 1;
+    }
+  }
+  return { done, total };
+}
+
+function countPerfectDaysInRange(start, end) {
+  let count = 0;
+  const days = iterDatesInclusive(start, end);
+  for (const d of days) {
+    const dueTasks = getDueTasksForDate(d);
+    if (dueTasks.length === 0) continue;
+    const iso = toISODate(d);
+    if (computeDayCompletionPct(iso) === 100) count += 1;
+  }
+  return count;
+}
+
+function renderWeeklyDashboard() {
+  if (!el.weeklyDashLabel) return;
+  const { start, end } = rangeFor(activeDate, "week");
+  const summary = computeSummaryForWindow(start, end);
+  const taskTotals = computeTaskSlotTotals(start, end);
+  const perfectDays = countPerfectDaysInRange(start, end);
+
+  if (el.weeklyDashLabel) el.weeklyDashLabel.textContent = `Week of ${formatShortDate(start)}`;
+  if (el.weeklyDashCompletion) el.weeklyDashCompletion.textContent = `${summary.completionPct}%`;
+  if (el.weeklyDashTasks) el.weeklyDashTasks.textContent = `${taskTotals.done} / ${taskTotals.total} tasks`;
+  if (el.weeklyDashPerfect) el.weeklyDashPerfect.textContent = String(perfectDays);
+  if (el.weeklyDashPerfectMeta) el.weeklyDashPerfectMeta.textContent = `${perfectDays} / 7 days`;
+  if (el.weeklyDashFocus) el.weeklyDashFocus.textContent = formatMinutes(summary.focusMinutes);
+  if (el.weeklyDashDeepWork) el.weeklyDashDeepWork.textContent = `${summary.deepWorkPct}%`;
+  if (el.weeklyDashStudy) el.weeklyDashStudy.textContent = formatNumber(summary.study);
+  if (el.weeklyDashEarnings) el.weeklyDashEarnings.textContent = currency(summary.earnings);
+}
+
+function buildPerfectDaysSeries(anchorDate, daysBack) {
+  const end = new Date(anchorDate);
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end);
+  start.setDate(start.getDate() - Math.max(0, daysBack - 1));
+  const days = iterDatesInclusive(start, end);
+
+  const labels = [];
+  const values = [];
+  let perfectCount = 0;
+
+  for (const d of days) {
+    labels.push(new Intl.DateTimeFormat(undefined, { month: "short", day: "2-digit" }).format(d));
+    const dueTasks = getDueTasksForDate(d);
+    if (dueTasks.length === 0) {
+      values.push(0);
+      continue;
+    }
+    const pct = computeDayCompletionPct(toISODate(d));
+    if (pct === 100) {
+      values.push(100);
+      perfectCount += 1;
+    } else {
+      values.push(0);
+    }
+  }
+
+  return { labels, values, perfectCount };
+}
+
+function buildMoneyTrendSeries(anchorDate, daysBack) {
+  const end = new Date(anchorDate);
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end);
+  start.setDate(start.getDate() - Math.max(0, daysBack - 1));
+  const days = iterDatesInclusive(start, end);
+
+  const labels = [];
+  const values = [];
+  let total = 0;
+  for (const d of days) {
+    const iso = toISODate(d);
+    labels.push(new Intl.DateTimeFormat(undefined, { month: "short", day: "2-digit" }).format(d));
+    const amount = safeNumber(state.days[iso]?.earnings ?? 0);
+    values.push(amount);
+    total += amount;
+  }
+
+  return { labels, values, total };
+}
+
+function renderPerfectDaysChart() {
+  if (!el.chartPerfectDays || !window.Chart) return;
+  const allowedRanges = [7, 30];
+  const rangeDays = allowedRanges.includes(safeNumber(uiState.perfectRange)) ? safeNumber(uiState.perfectRange) : 7;
+  if (el.perfectRangeSelect && document.activeElement !== el.perfectRangeSelect) {
+    el.perfectRangeSelect.value = String(rangeDays);
+  }
+
+  const series = buildPerfectDaysSeries(activeDate, rangeDays);
+  if (el.perfectDaysMeta) el.perfectDaysMeta.textContent = `${series.perfectCount} perfect days`;
+
+  const theme = chartTheme();
+  if (chartPerfectDaysInstance) chartPerfectDaysInstance.destroy();
+  chartPerfectDaysInstance = new window.Chart(el.chartPerfectDays.getContext("2d"), {
+    type: "bar",
+    data: {
+      labels: series.labels,
+      datasets: [
+        {
+          label: "Perfect day",
+          data: series.values,
+          backgroundColor: theme.green,
+          borderRadius: 6,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: theme.tick } },
+        tooltip: { enabled: true },
+      },
+      scales: {
+        x: { ticks: { color: theme.tick }, grid: { color: theme.grid } },
+        y: { ticks: { color: theme.tick }, grid: { color: theme.grid }, beginAtZero: true, max: 100 },
+      },
+    },
+  });
+}
+
+function renderMoneyTrendChart() {
+  if (!el.chartMoneyTrend || !window.Chart) return;
+  const allowedRanges = [7, 30];
+  const rangeDays = allowedRanges.includes(safeNumber(uiState.moneyRange)) ? safeNumber(uiState.moneyRange) : 30;
+  if (el.moneyRangeSelect && document.activeElement !== el.moneyRangeSelect) {
+    el.moneyRangeSelect.value = String(rangeDays);
+  }
+
+  const series = buildMoneyTrendSeries(activeDate, rangeDays);
+  if (el.moneyTrendMeta) el.moneyTrendMeta.textContent = `Total: ${currency(series.total)}`;
+
+  const theme = chartTheme();
+  const ctx = el.chartMoneyTrend.getContext("2d");
+  const gradient = ctx.createLinearGradient(0, 0, 0, 160);
+  gradient.addColorStop(0, withAlpha(theme.yellow, 0.4));
+  gradient.addColorStop(1, withAlpha(theme.yellow, 0.05));
+
+  if (chartMoneyTrendInstance) chartMoneyTrendInstance.destroy();
+  chartMoneyTrendInstance = new window.Chart(ctx, {
+    type: "line",
+    data: {
+      labels: series.labels,
+      datasets: [
+        {
+          label: "Earnings",
+          data: series.values,
+          borderColor: theme.yellow,
+          backgroundColor: gradient,
+          tension: 0.35,
+          fill: true,
+          pointRadius: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: theme.tick } },
+        tooltip: { enabled: true },
+      },
+      scales: {
+        x: { ticks: { color: theme.tick }, grid: { color: theme.grid } },
+        y: { ticks: { color: theme.tick }, grid: { color: theme.grid }, beginAtZero: true },
+      },
+    },
+  });
+}
+
+function getQuestClaims() {
+  if (!state.questClaims || typeof state.questClaims !== "object") state.questClaims = {};
+  return state.questClaims;
+}
+
+function questKey(scope, id, dateObj) {
+  const keyDate = scope === "weekly" ? startOfWeek(dateObj) : dateObj;
+  return `${scope}:${toISODate(keyDate)}:${id}`;
+}
+
+function buildQuestList() {
+  const iso = toISODate(activeDate);
+  const rec = getDayRecord(iso);
+  const { start, end } = rangeFor(activeDate, "week");
+  const summary = computeSummaryForWindow(start, end);
+  summary.perfectDays = countPerfectDaysInRange(start, end);
+
+  const daily = DAILY_QUESTS.map((quest) => {
+    const progress = safeNumber(quest.getProgress(rec));
+    const goal = safeNumber(quest.goal);
+    const complete = progress >= goal;
+    return {
+      id: quest.id,
+      title: quest.title,
+      scope: "daily",
+      progress,
+      goal,
+      complete,
+      xp: QUEST_CONFIG.dailyXp,
+    };
+  });
+
+  const weekly = WEEKLY_QUESTS.map((quest) => {
+    const progress = safeNumber(quest.getProgress(summary));
+    const goal = safeNumber(quest.goal);
+    const complete = progress >= goal;
+    return {
+      id: quest.id,
+      title: quest.title,
+      scope: "weekly",
+      progress,
+      goal,
+      complete,
+      xp: QUEST_CONFIG.weeklyXp,
+    };
+  });
+
+  return { daily, weekly };
+}
+
+function claimQuest(quest) {
+  if (!quest || !quest.complete) return;
+  const claims = getQuestClaims();
+  const key = questKey(quest.scope, quest.id, activeDate);
+  if (claims[key]) return;
+  claims[key] = { claimedAt: Date.now() };
+
+  const rec = getDayRecord(toISODate(activeDate));
+  if (!Array.isArray(rec.bonusSources)) rec.bonusSources = [];
+  rec.bonusSources.push({
+    label: `${quest.title} (${quest.scope})`,
+    xp: quest.xp,
+    ts: Date.now(),
+  });
+  saveState(state);
+  render();
+}
+
+function renderQuestSection(title, quests) {
+  const fragment = document.createDocumentFragment();
+  const label = document.createElement("div");
+  label.className = "questSectionLabel";
+  label.textContent = title;
+  fragment.appendChild(label);
+
+  const claims = getQuestClaims();
+  for (const quest of quests) {
+    const card = document.createElement("div");
+    card.className = "questCard";
+
+    const top = document.createElement("div");
+    top.className = "questTop";
+    const titleEl = document.createElement("div");
+    titleEl.className = "questTitle";
+    titleEl.textContent = quest.title;
+    const meta = document.createElement("div");
+    meta.className = "questMeta";
+    const progressValue = Math.min(quest.progress, quest.goal);
+    meta.textContent = quest.goal <= 1
+      ? (quest.complete ? "Done" : "Not yet")
+      : `${progressValue} / ${quest.goal}`;
+    top.appendChild(titleEl);
+    top.appendChild(meta);
+
+    const progress = document.createElement("div");
+    progress.className = "questProgress";
+    const fill = document.createElement("div");
+    fill.className = "questProgress__fill";
+    const pct = quest.goal > 0 ? clamp((quest.progress / quest.goal) * 100, 0, 100) : 0;
+    fill.style.width = `${pct}%`;
+    progress.appendChild(fill);
+
+    const actions = document.createElement("div");
+    actions.className = "questActions";
+    const reward = document.createElement("div");
+    reward.className = "questReward";
+    reward.textContent = `+${quest.xp} XP`;
+    actions.appendChild(reward);
+
+    const key = questKey(quest.scope, quest.id, activeDate);
+    const claimed = Boolean(claims[key]);
+    if (quest.complete && !claimed) {
+      const claimBtn = document.createElement("button");
+      claimBtn.className = "smallBtn";
+      claimBtn.textContent = "Claim";
+      claimBtn.type = "button";
+      claimBtn.addEventListener("click", () => claimQuest(quest));
+      actions.appendChild(claimBtn);
+    } else {
+      const status = document.createElement("div");
+      status.className = "questMeta";
+      status.textContent = claimed ? "Claimed" : "In progress";
+      actions.appendChild(status);
+    }
+
+    card.appendChild(top);
+    card.appendChild(progress);
+    card.appendChild(actions);
+    fragment.appendChild(card);
+  }
+  return fragment;
+}
+
+function renderQuestBoard() {
+  if (!el.questBoardList) return;
+  el.questBoardList.innerHTML = "";
+  const { daily, weekly } = buildQuestList();
+  if (el.questBoardMeta) {
+    const dailyDone = daily.filter((q) => q.complete).length;
+    const weeklyDone = weekly.filter((q) => q.complete).length;
+    el.questBoardMeta.textContent = `Daily ${dailyDone}/${daily.length} • Weekly ${weeklyDone}/${weekly.length}`;
+  }
+  el.questBoardList.appendChild(renderQuestSection("Daily quests", daily));
+  el.questBoardList.appendChild(renderQuestSection("Weekly quests", weekly));
+}
+
+function getBackups() {
+  if (!Array.isArray(state.backups)) state.backups = [];
+  return state.backups;
+}
+
+function downloadJsonFile(jsonText, filename) {
+  const blob = new Blob([jsonText], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function createBackupSnapshot(label, { silent = false } = {}) {
+  const backups = getBackups();
+  const snapshotState = { ...state, backups: [] };
+  const snapshot = {
+    id: crypto.randomUUID(),
+    label: label || `Backup ${formatShortDate(todayLocalDate())}`,
+    createdAt: Date.now(),
+    data: JSON.stringify(snapshotState),
+  };
+  backups.unshift(snapshot);
+  state.backups = normalizeBackups(backups);
+  if (!silent) saveState(state);
+  return snapshot;
+}
+
+function renderBackups() {
+  if (!el.backupList || !el.backupMeta) return;
+  const backups = normalizeBackups(state.backups);
+  state.backups = backups;
+  el.backupMeta.textContent = `${backups.length} backups`;
+  el.backupList.innerHTML = "";
+
+  if (el.autoBackupToggle) el.autoBackupToggle.checked = Boolean(uiState.autoBackup);
+
+  if (backups.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "emptyState";
+    empty.textContent = "No backups yet. Save one to protect your progress.";
+    el.backupList.appendChild(empty);
+    return;
+  }
+
+  for (const backup of backups) {
+    const item = document.createElement("div");
+    item.className = "backupItem";
+
+    const info = document.createElement("div");
+    info.className = "backupInfo";
+    const title = document.createElement("div");
+    title.className = "backupTitle";
+    title.textContent = backup.label;
+    const meta = document.createElement("div");
+    meta.className = "backupMeta";
+    meta.textContent = `Saved ${formatShortDate(new Date(backup.createdAt))}`;
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "backupActions";
+    const restoreBtn = document.createElement("button");
+    restoreBtn.className = "smallBtn";
+    restoreBtn.type = "button";
+    restoreBtn.textContent = "Restore";
+    restoreBtn.addEventListener("click", () => {
+      const ok = confirm("Restore this backup? Current data will be overwritten.");
+      if (!ok) return;
+      try {
+        const parsed = JSON.parse(backup.data);
+        const next = normalizeImportedState(parsed);
+        if (!next) throw new Error("Invalid backup");
+        next.backups = normalizeBackups(state.backups);
+        state = next;
+        saveState(state);
+        setActiveDate(todayLocalDate());
+      } catch {
+        alert("Backup restore failed.");
+      }
+    });
+
+    const downloadBtn = document.createElement("button");
+    downloadBtn.className = "smallBtn";
+    downloadBtn.type = "button";
+    downloadBtn.textContent = "Download";
+    downloadBtn.addEventListener("click", () => {
+      downloadJsonFile(backup.data, `self-improvement-backup-${formatIsoDateForFilename(new Date(backup.createdAt))}.json`);
+    });
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "smallBtn";
+    deleteBtn.type = "button";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.addEventListener("click", () => {
+      state.backups = state.backups.filter((b) => b.id !== backup.id);
+      saveState(state);
+      renderBackups();
+    });
+
+    actions.appendChild(restoreBtn);
+    actions.appendChild(downloadBtn);
+    actions.appendChild(deleteBtn);
+
+    item.appendChild(info);
+    item.appendChild(actions);
+    el.backupList.appendChild(item);
+  }
+}
+
+function formatIsoDateForFilename(dateObj) {
+  const d = new Date(dateObj);
+  d.setHours(0, 0, 0, 0);
+  return toISODate(d);
+}
+
+let autoBackupLock = false;
+function maybeAutoBackup() {
+  if (!uiState.autoBackup || autoBackupLock) return;
+  const todayKey = toISODate(todayLocalDate());
+  state.meta ??= {};
+  if (state.meta.lastAutoBackup === todayKey) return;
+  autoBackupLock = true;
+  createBackupSnapshot(`Auto backup ${todayKey}`, { silent: true });
+  state.meta.lastAutoBackup = todayKey;
+  saveState(state);
+  autoBackupLock = false;
+}
+
 function renderAutoInsights() {
   if (!el.autoInsightsList) return;
   el.autoInsightsList.innerHTML = "";
@@ -7077,12 +7715,16 @@ function normalizeImportedState(maybeState) {
     reminders: normalizeReminders(maybeState.reminders),
     achievements: normalizeAchievements(maybeState.achievements),
     freezeUsed: Array.isArray(maybeState.freezeUsed) ? maybeState.freezeUsed.filter(isIsoDate) : [],
+    questClaims: typeof maybeState.questClaims === "object" && maybeState.questClaims ? maybeState.questClaims : {},
+    backups: Array.isArray(maybeState.backups) ? maybeState.backups : [],
   };
 
   normalized.goals.studyDaily = Math.max(0, safeNumber(normalized.goals.studyDaily));
   normalized.goals.earningsDaily = Math.max(0, safeNumber(normalized.goals.earningsDaily));
   const sleepRaw = safeNumber(normalized.goals.sleepDaily);
   normalized.goals.sleepDaily = Math.max(0, sleepRaw || 8);
+  if (!normalized.questClaims || typeof normalized.questClaims !== "object") normalized.questClaims = {};
+  normalized.backups = normalizeBackups(normalized.backups);
   if (!normalized.meta.antiHabitsSeeded) {
     const existing = new Set(
       (normalized.antiHabits ?? [])
@@ -7164,6 +7806,7 @@ function render() {
   renderQuarterlyGoals();
   renderDailyScorecard();
   renderFocusLane(iso);
+  renderGuidedFlow();
   renderTasks(iso);
   renderAntiHabits(iso);
   renderSocialMomentum(iso);
@@ -7177,6 +7820,7 @@ function render() {
   renderFocus(iso);
   renderWeeklyPriorities();
   renderWeeklyReview();
+  renderWeeklyDashboard();
   renderLeaderboard();
   setNotesTab(activeNotesTab);
   renderNotesSavedAt(iso);
@@ -7186,6 +7830,7 @@ function render() {
   renderSkills();
   renderSummary();
   refreshProgressionUI(levelSnapshot);
+  renderQuestBoard();
   renderPerfectDays();
   renderAchievements();
   renderHistory();
@@ -7205,6 +7850,8 @@ function render() {
   renderAutoInsights();
   applyFocusMode();
   applyFlowMode();
+  maybeAutoBackup();
+  renderBackups();
   checkVoltarisServer({ force: false }).then(() => renderVoltaris());
 }
 
@@ -7285,6 +7932,24 @@ function bindEvents() {
     applyFlowMode();
   });
 
+  el.guidedMorningBtn?.addEventListener("click", () => {
+    scrollToElement("mitInput");
+  });
+  el.guidedMiddayBtn?.addEventListener("click", () => {
+    scrollToElement("moodInput");
+  });
+  el.guidedNightBtn?.addEventListener("click", () => {
+    scrollToElement("notesArea");
+  });
+  el.guidedOpenFlowBtn?.addEventListener("click", () => {
+    uiState.flowMode = true;
+    uiState.focusMode = false;
+    saveUiState(uiState);
+    applyFocusMode();
+    applyFlowMode();
+    scrollToElement("flowPanel");
+  });
+
   el.sectionSummary?.addEventListener("click", () => setRightTab("summary"));
   el.sectionInsights?.addEventListener("click", () => setRightTab("insights"));
   el.sectionManage?.addEventListener("click", () => setRightTab("manage"));
@@ -7355,6 +8020,7 @@ function bindEvents() {
     saveState(state);
     renderMit(iso);
     renderFocusLane(iso);
+    renderGuidedFlow();
     renderFlowReview(iso);
     renderFlowHeader(iso);
   };
@@ -7525,6 +8191,7 @@ function bindEvents() {
     rec.checkin.mood = clamp(Math.round(safeNumber(value)), 0, 5);
     saveState(state);
     renderMoodEnergy(rec.checkin.mood, rec.checkin.energy);
+    renderGuidedFlow();
     renderAutoInsights();
     scheduleChartsRefresh();
   };
@@ -7535,6 +8202,7 @@ function bindEvents() {
     rec.checkin.energy = clamp(Math.round(safeNumber(value)), 0, 5);
     saveState(state);
     renderMoodEnergy(rec.checkin.mood, rec.checkin.energy);
+    renderGuidedFlow();
     renderAutoInsights();
     scheduleChartsRefresh();
   };
@@ -7733,6 +8401,23 @@ function bindEvents() {
   el.voltarisContextToggle?.addEventListener("change", () => {
     uiState.voltarisContextEnabled = Boolean(el.voltarisContextToggle.checked);
     saveUiState(uiState);
+  });
+
+  el.ollamaCopyBtn?.addEventListener("click", async () => {
+    const steps = [
+      "Install Ollama: https://ollama.com",
+      "Run: ollama run llama3.1",
+      "Set in server/.env:",
+      "AI_PROVIDER=ollama",
+      "OLLAMA_MODEL=llama3.1",
+      "Restart: npm start (inside server folder)",
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(steps);
+      alert("Ollama setup steps copied.");
+    } catch {
+      alert("Copy failed. The steps are shown inside the Voltaris card.");
+    }
   });
 
   el.voltarisDockBtn?.addEventListener("click", () => setVoltarisDockOpen(true));
@@ -8163,6 +8848,20 @@ function bindEvents() {
     renderTrendChart();
   });
 
+  el.perfectRangeSelect?.addEventListener("change", () => {
+    const next = safeNumber(el.perfectRangeSelect.value);
+    uiState.perfectRange = [7, 30].includes(next) ? next : 7;
+    saveUiState(uiState);
+    renderPerfectDaysChart();
+  });
+
+  el.moneyRangeSelect?.addEventListener("change", () => {
+    const next = safeNumber(el.moneyRangeSelect.value);
+    uiState.moneyRange = [7, 30].includes(next) ? next : 30;
+    saveUiState(uiState);
+    renderMoneyTrendChart();
+  });
+
   el.addObjectiveBtn.addEventListener("click", () => {
     const text = (el.objectiveInput.value ?? "").trim();
     if (!text) return;
@@ -8398,6 +9097,46 @@ function bindEvents() {
     a.remove();
 
     URL.revokeObjectURL(url);
+  });
+
+  el.backupNowBtn?.addEventListener("click", () => {
+    createBackupSnapshot(`Manual backup ${toISODate(todayLocalDate())}`);
+    renderBackups();
+  });
+
+  el.backupDownloadBtn?.addEventListener("click", () => {
+    const snapshotState = { ...state, backups: [] };
+    downloadJsonFile(
+      JSON.stringify(snapshotState, null, 2),
+      `self-improvement-backup-${toISODate(todayLocalDate())}.json`
+    );
+  });
+
+  el.backupCopyBtn?.addEventListener("click", async () => {
+    try {
+      const snapshotState = { ...state, backups: [] };
+      await navigator.clipboard.writeText(JSON.stringify(snapshotState, null, 2));
+      alert("Backup JSON copied to clipboard.");
+    } catch {
+      alert("Clipboard copy failed. Use Download instead.");
+    }
+  });
+
+  el.autoBackupToggle?.addEventListener("change", () => {
+    uiState.autoBackup = Boolean(el.autoBackupToggle.checked);
+    saveUiState(uiState);
+    if (uiState.autoBackup) {
+      maybeAutoBackup();
+      renderBackups();
+    }
+  });
+
+  el.clearBackupsBtn?.addEventListener("click", () => {
+    const ok = confirm("Clear all backups? This cannot be undone.");
+    if (!ok) return;
+    state.backups = [];
+    saveState(state);
+    renderBackups();
   });
 
   el.exportCsvBtn?.addEventListener("click", () => {

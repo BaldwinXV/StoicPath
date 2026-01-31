@@ -213,6 +213,45 @@
             </div>
           </div>
 
+          <div class="card guidedFlow" data-focus-hide="true" id="guidedFlowCard">
+            <div class="card__head">
+              <div class="card__title">Guided Day</div>
+              <div class="card__meta" id="guidedFlowMeta">0/3 complete</div>
+            </div>
+            <div class="card__body">
+              <div class="guidedStep">
+                <div>
+                  <div class="guidedStep__title">Morning intention</div>
+                  <div class="guidedStep__meta" id="guidedMorningStatus">Not started</div>
+                </div>
+                <button class="smallBtn" id="guidedMorningBtn" type="button">Do now</button>
+              </div>
+              <div class="guidedStep">
+                <div>
+                  <div class="guidedStep__title">Midday check-in</div>
+                  <div class="guidedStep__meta" id="guidedMiddayStatus">Not started</div>
+                </div>
+                <button class="smallBtn" id="guidedMiddayBtn" type="button">Do now</button>
+              </div>
+              <div class="guidedStep">
+                <div>
+                  <div class="guidedStep__title">Night review</div>
+                  <div class="guidedStep__meta" id="guidedNightStatus">Not started</div>
+                </div>
+                <button class="smallBtn" id="guidedNightBtn" type="button">Do now</button>
+              </div>
+              <div class="guidedProgress">
+                <div class="bar">
+                  <div class="bar__fill" id="guidedFlowBar" style="width:0%"></div>
+                </div>
+                <div class="muted" id="guidedFlowHint">Follow the three anchors to finish the day.</div>
+              </div>
+              <div class="row" style="margin-top:10px">
+                <button class="btn btn--ghost" id="guidedOpenFlowBtn" type="button">Open Daily Flow</button>
+              </div>
+            </div>
+          </div>
+
           <div class="card">
             <div class="card__head">
               <div class="card__title">Daily scorecard</div>
@@ -675,6 +714,17 @@
 
             <div class="card">
               <div class="card__head">
+                <div class="card__title">Quest Board</div>
+                <div class="card__meta" id="questBoardMeta">Daily + weekly rewards</div>
+              </div>
+              <div class="card__body">
+                <div class="questGrid" id="questBoardList" aria-label="Quest board"></div>
+                <div class="muted">Complete quests to earn bonus XP and keep momentum.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
                 <div class="card__title">75-Day Roadmap</div>
                 <div class="card__meta">Goal: 1000 EUR in 75 days</div>
               </div>
@@ -960,6 +1010,74 @@
 
             <div class="card">
               <div class="card__head">
+                <div>
+                  <div class="card__title">Weekly Review Dashboard</div>
+                  <div class="card__meta" id="weeklyDashLabel">Week of —</div>
+                </div>
+              </div>
+              <div class="card__body">
+                <div class="dashGrid">
+                  <div class="dashStat">
+                    <div class="dashLabel">Completion</div>
+                    <div class="dashValue" id="weeklyDashCompletion">0%</div>
+                    <div class="dashMeta" id="weeklyDashTasks">0 / 0 tasks</div>
+                  </div>
+                  <div class="dashStat">
+                    <div class="dashLabel">Perfect days</div>
+                    <div class="dashValue" id="weeklyDashPerfect">0</div>
+                    <div class="dashMeta" id="weeklyDashPerfectMeta">0 this week</div>
+                  </div>
+                  <div class="dashStat">
+                    <div class="dashLabel">Focus time</div>
+                    <div class="dashValue" id="weeklyDashFocus">0h</div>
+                    <div class="dashMeta">Focus minutes</div>
+                  </div>
+                  <div class="dashStat">
+                    <div class="dashLabel">Deep work</div>
+                    <div class="dashValue" id="weeklyDashDeepWork">0%</div>
+                    <div class="dashMeta">Focus / study ratio</div>
+                  </div>
+                  <div class="dashStat">
+                    <div class="dashLabel">Study hours</div>
+                    <div class="dashValue" id="weeklyDashStudy">0</div>
+                    <div class="dashMeta">Logged this week</div>
+                  </div>
+                  <div class="dashStat">
+                    <div class="dashLabel">Earnings</div>
+                    <div class="dashValue" id="weeklyDashEarnings">0</div>
+                    <div class="dashMeta">Logged this week</div>
+                  </div>
+                </div>
+
+                <div class="chartGrid">
+                  <div class="chartCard">
+                    <div class="chartTitleRow">
+                      <div class="chartTitle">100% success days</div>
+                      <select class="field__input chartSelect" id="perfectRangeSelect" aria-label="Perfect days range">
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                      </select>
+                    </div>
+                    <canvas id="chartPerfectDays" height="160" aria-label="Perfect days chart"></canvas>
+                    <div class="muted" id="perfectDaysMeta">0 perfect days</div>
+                  </div>
+                  <div class="chartCard">
+                    <div class="chartTitleRow">
+                      <div class="chartTitle">Money trend</div>
+                      <select class="field__input chartSelect" id="moneyRangeSelect" aria-label="Money trend range">
+                        <option value="7">Last 7 days</option>
+                        <option value="30" selected>Last 30 days</option>
+                      </select>
+                    </div>
+                    <canvas id="chartMoneyTrend" height="160" aria-label="Money trend chart"></canvas>
+                    <div class="muted" id="moneyTrendMeta">Track daily earnings</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
                 <div class="card__title">Task Stats</div>
                 <div class="card__meta">Completion rate (selected range)</div>
               </div>
@@ -1071,6 +1189,29 @@
 
             <div class="card">
               <div class="card__head">
+                <div class="card__title">Backup & Export</div>
+                <div class="card__meta" id="backupMeta">0 backups</div>
+              </div>
+              <div class="card__body">
+                <div class="row">
+                  <button class="btn" id="backupNowBtn" type="button">Save local backup</button>
+                  <button class="btn btn--ghost" id="backupDownloadBtn" type="button">Download JSON</button>
+                  <button class="smallBtn" id="backupCopyBtn" type="button">Copy JSON</button>
+                </div>
+                <div class="row" style="margin-top:10px">
+                  <label class="checkLabel">
+                    <input type="checkbox" id="autoBackupToggle" />
+                    <span>Auto backup daily</span>
+                  </label>
+                  <button class="smallBtn" id="clearBackupsBtn" type="button">Clear backups</button>
+                </div>
+                <div class="list" id="backupList" aria-label="Backups list"></div>
+                <div class="muted">Backups are stored locally in your browser.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
                 <div class="card__title">Voltaris AI</div>
                 <div class="card__meta">Habit architect</div>
               </div>
@@ -1097,6 +1238,17 @@
                       </label>
                     </div>
                     <div class="muted">Free mode works offline. AI mode needs a paid OpenAI API key on your local server.</div>
+                  </div>
+                </div>
+                <div class="aiCallout">
+                  <div class="aiCallout__title">Free local AI (Ollama)</div>
+                  <div class="aiCallout__text">
+                    Install Ollama, then set <span class="pill">AI_PROVIDER=ollama</span> and
+                    <span class="pill">OLLAMA_MODEL=llama3.1</span> in <span class="pill">server/.env</span>.
+                    Restart the Voltaris server to use free local replies.
+                  </div>
+                  <div class="row" style="margin-top:8px">
+                    <button class="smallBtn" id="ollamaCopyBtn" type="button">Copy setup steps</button>
                   </div>
                 </div>
                 <div class="voltarisActions">

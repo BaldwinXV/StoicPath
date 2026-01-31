@@ -1270,6 +1270,159 @@ button.item{ font: inherit; }
   font-size:12px;
   color:var(--muted);
 }
+
+.guidedFlow .guidedStep{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background: rgba(255,255,255,0.03);
+  margin-bottom:8px;
+}
+.guidedStep__title{
+  font-weight:600;
+}
+.guidedStep__meta{
+  font-size:12px;
+  color:var(--muted);
+}
+.guidedStep.is-done{
+  border-color: rgba(126,231,135,0.45);
+  background: rgba(126,231,135,0.08);
+}
+.guidedProgress{ margin-top:8px; }
+
+.questGrid{
+  display:grid;
+  gap:12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.questCard{
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:12px;
+  background: rgba(255,255,255,0.03);
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.questTop{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+}
+.questTitle{ font-weight:600; }
+.questMeta{
+  font-size:12px;
+  color:var(--muted);
+}
+.questProgress{
+  height:8px;
+  background: rgba(255,255,255,0.08);
+  border-radius:999px;
+  overflow:hidden;
+}
+.questProgress__fill{
+  height:100%;
+  width:0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent3));
+}
+.questActions{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.questReward{
+  font-size:12px;
+  color:var(--accent2);
+}
+.questSectionLabel{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.18em;
+  color:var(--muted2);
+  margin-top:4px;
+}
+
+.dashGrid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap:12px;
+  margin-bottom:14px;
+}
+.dashStat{
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background: rgba(255,255,255,0.03);
+}
+.dashLabel{
+  font-size:12px;
+  color:var(--muted);
+}
+.dashValue{
+  font-size:20px;
+  font-weight:700;
+}
+.dashMeta{
+  font-size:12px;
+  color:var(--muted2);
+}
+.chartTitleRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:8px;
+}
+
+.aiCallout{
+  margin:10px 0 6px;
+  padding:12px;
+  border-radius:14px;
+  border:1px solid rgba(95,227,192,0.35);
+  background: rgba(95,227,192,0.08);
+}
+.aiCallout__title{
+  font-weight:600;
+}
+.aiCallout__text{
+  font-size:12px;
+  color:var(--muted);
+  margin-top:4px;
+}
+
+.backupItem{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background: rgba(255,255,255,0.03);
+  margin-top:8px;
+}
+.backupInfo{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.backupTitle{ font-weight:600; }
+.backupMeta{
+  font-size:12px;
+  color:var(--muted);
+}
+.backupActions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
 .voltarisDock{
   position: fixed;
   right: 18px;
